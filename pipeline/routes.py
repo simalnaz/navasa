@@ -1,20 +1,32 @@
 """Shortest and gentlest route for each leg between stops, with facts measured along them.
 
-Grid: the 1 m walk-area grid from crop_layers.py. A route moves from a cell to
-any of its 8 neighbours (straight step = 1 cell, diagonal step = sqrt(2) cells)
-and only over cells that have a height and a slope.
+Grid: the 1 m walk-area grid from crop_layers.py. Only cells that have a slope
+(and so a height) can be walked on.
 
-Shortest route:  least horizontal distance (scikit-image MCP_Geometric, cost 1 per metre).
-Gentlest route:  the lowest slope S for which the two stops are still connected using
-                 only cells with slope <= S (found by binary search over the slope
-                 values), then the shortest route through those cells.
-                 Its steepest point is S.
+1. Grid path: scikit-image MCP_Geometric finds the least-distance path, moving
+   to any of the 8 neighbouring cells (straight step 1 cell, diagonal sqrt(2)).
+2. Line-of-sight smoothing: grid paths can only turn at 0 or 45 degrees, which
+   makes them longer than the real shortest way. From each corner, the path
+   goes straight to the farthest later point of the grid path that can be
+   reached in a straight line over allowed cells only. A straight segment is
+   allowed when every cell under it (sampled every DEFAULT_ROUTES["sample_step_cells"]
+   cells) is allowed.
 
-Measured along each route (CALCULATED from the DTM):
-    distance_m      horizontal length of the path
-    climb_m         sum of all height rises between consecutive cells
-    descent_m       sum of all height drops between consecutive cells
-    max_slope_deg   steepest slope of any cell on the path
+Shortest route:  allowed cells = all cells with a slope.
+Gentlest route:  S = the lowest slope for which the two stops are still connected
+                 through cells with slope <= S (binary search over the slope
+                 values); allowed cells = cells with slope <= S. The two stop
+                 cells are always allowed and do not count towards S: the route
+                 is the gentlest way between the stops. The ground slope at
+                 each stop is a separate fact shown with the stop.
+
+Measured along each route (CALCULATED from the DTM), over the cells under its
+straight segments:
+    points          corners of the route, [col, row]
+    distance_m      horizontal length (sum of straight segment lengths)
+    climb_m         sum of all height rises from cell to cell
+    descent_m       sum of all height drops from cell to cell
+    max_slope_deg   steepest cell on the route, not counting the two stop cells
     max_slope_at    [col, row] of that cell
 
 Input:  data/work/dtm_1m.tif, data/work/slope_deg.tif, data/stops.json
@@ -40,104 +52,164 @@ from pipeline.terrain import SLOPE_PATH, read_heights
 
 ROUTES_PATH = os.path.join(WORK_DIR, "routes.json")
 IMPASSABLE_COST = -1.0  # MCP treats negative costs as impassable
+DEFAULT_ROUTES = {"sample_step_cells": 0.25}
 
 
-def shortest_path(passable, start, end):
-    """Least-distance 8-neighbour path over passable cells. start/end are (row, col).
+def with_stops_allowed(allowed, start, end):
+    """Copy of the allowed-cells mask with the two stop cells always allowed."""
+    allowed = allowed.copy()
+    allowed[start] = True
+    allowed[end] = True
+    return allowed
+
+
+def grid_path(allowed, start, end):
+    """Least-distance 8-neighbour path over allowed cells. start/end are (row, col).
 
     Returns the list of (row, col) cells, or None if end cannot be reached.
     """
-    if not passable[start] or not passable[end]:
+    if not allowed[start] or not allowed[end]:
         return None
-    costs = numpy.where(passable, 1.0, IMPASSABLE_COST)
+    costs = numpy.where(allowed, 1.0, IMPASSABLE_COST)
     graph = MCP_Geometric(costs, fully_connected=True)
     cumulative_costs, _ = graph.find_costs([start], [end])
     if not numpy.isfinite(cumulative_costs[end]):
         return None
-    return graph.traceback(end)
+    path = []
+    for cell in graph.traceback(end):
+        path.append((int(cell[0]), int(cell[1])))
+    return path
 
 
-def are_connected(passable, start, end):
-    """True if start and end are in the same 8-connected group of passable cells."""
-    if not passable[start] or not passable[end]:
-        return False
-    groups = label(passable, connectivity=2)
+def segment_cells(start, end):
+    """The cells under the straight segment from start to end, in order, without repeats."""
+    length = math.hypot(end[0] - start[0], end[1] - start[1])
+    sample_count = int(math.ceil(length / DEFAULT_ROUTES["sample_step_cells"])) + 1
+    fractions = numpy.linspace(0.0, 1.0, sample_count)
+    exact_rows = start[0] + fractions * (end[0] - start[0])
+    exact_cols = start[1] + fractions * (end[1] - start[1])
+    # A sample exactly on a cell corner touches four cells but crosses none of them; skip it.
+    on_row_edge = numpy.isclose(exact_rows - numpy.floor(exact_rows), 0.5)
+    on_col_edge = numpy.isclose(exact_cols - numpy.floor(exact_cols), 0.5)
+    on_corner = on_row_edge & on_col_edge
+    rows = numpy.rint(exact_rows[~on_corner]).astype(int)
+    cols = numpy.rint(exact_cols[~on_corner]).astype(int)
+    keep = numpy.ones(len(rows), dtype=bool)
+    keep[1:] = (rows[1:] != rows[:-1]) | (cols[1:] != cols[:-1])
+    return rows[keep], cols[keep]
+
+
+def in_line_of_sight(allowed, start, end):
+    rows, cols = segment_cells(start, end)
+    return bool(allowed[rows, cols].all())
+
+
+def smooth_path(path, allowed):
+    """Corners of the path after line-of-sight smoothing (always keeps the first and last cell)."""
+    corners = [path[0]]
+    anchor_index = 0
+    last_index = len(path) - 1
+    while anchor_index < last_index:
+        reach_index = anchor_index + 1
+        while reach_index < last_index and in_line_of_sight(
+            allowed, path[anchor_index], path[reach_index + 1]
+        ):
+            reach_index += 1
+        corners.append(path[reach_index])
+        anchor_index = reach_index
+    return corners
+
+
+def are_connected(allowed, start, end):
+    """True if start and end are in the same 8-connected group of allowed cells."""
+    groups = label(allowed, connectivity=2)
     return bool(groups[start] == groups[end])
 
 
 def lowest_connecting_slope(slope, start, end):
     """The lowest slope S for which start and end are connected through cells with slope <= S.
 
-    Binary search over the sorted distinct slope values. Returns None if they are
-    never connected.
+    The two stop cells are always allowed. Binary search over the sorted distinct
+    slope values. Returns None if the stops are never connected.
     """
     has_slope = numpy.isfinite(slope)
-    if not has_slope[start] or not has_slope[end]:
-        return None
     candidates = numpy.unique(slope[has_slope])
-    lowest_possible = max(slope[start], slope[end])
-    low_index = int(numpy.searchsorted(candidates, lowest_possible))
+    low_index = 0
     high_index = len(candidates) - 1
-    if not are_connected(has_slope & (slope <= candidates[high_index]), start, end):
+    if not are_connected(with_stops_allowed(has_slope, start, end), start, end):
         return None
     while low_index < high_index:
         middle_index = (low_index + high_index) // 2
-        if are_connected(has_slope & (slope <= candidates[middle_index]), start, end):
+        allowed = with_stops_allowed(has_slope & (slope <= candidates[middle_index]), start, end)
+        if are_connected(allowed, start, end):
             high_index = middle_index
         else:
             low_index = middle_index + 1
     return float(candidates[low_index])
 
 
-def measure_path(path, heights, slope, cell_size_m):
-    """Distance, climb, descent and steepest point along a path of (row, col) cells."""
+def measure_route(corners, heights, slope, cell_size_m):
+    """Distance, climb, descent and steepest point along the straight segments between corners."""
     distance_cells = 0.0
-    climb_m = 0.0
-    descent_m = 0.0
-    max_slope = -1.0
-    max_slope_cell = path[0]
-    for index, cell in enumerate(path):
-        if slope[cell] > max_slope:
-            max_slope = float(slope[cell])
-            max_slope_cell = cell
-        if index == 0:
-            continue
-        previous = path[index - 1]
-        is_diagonal = previous[0] != cell[0] and previous[1] != cell[1]
-        if is_diagonal:
-            distance_cells += math.sqrt(2.0)
-        else:
-            distance_cells += 1.0
-        height_change = float(heights[cell] - heights[previous])
-        if height_change > 0:
-            climb_m += height_change
-        else:
-            descent_m -= height_change
+    route_rows = [corners[0][0]]
+    route_cols = [corners[0][1]]
+    for index in range(1, len(corners)):
+        previous = corners[index - 1]
+        corner = corners[index]
+        distance_cells += math.hypot(corner[0] - previous[0], corner[1] - previous[1])
+        rows, cols = segment_cells(previous, corner)
+        route_rows.extend(rows[1:].tolist())
+        route_cols.extend(cols[1:].tolist())
+
+    route_heights = heights[route_rows, route_cols]
+    height_changes = numpy.diff(route_heights)
+    climb_m = float(height_changes[height_changes > 0].sum())
+    descent_m = float(-height_changes[height_changes < 0].sum())
+
+    # The steepest point between the stops: leave out the first and last cell (the stops).
+    if len(route_rows) > 2:
+        inner_rows = route_rows[1:-1]
+        inner_cols = route_cols[1:-1]
+    else:
+        inner_rows = route_rows
+        inner_cols = route_cols
+    inner_slopes = slope[inner_rows, inner_cols]
+    steepest_index = int(numpy.argmax(inner_slopes))
+
+    points = []
+    for row, col in corners:
+        points.append([int(col), int(row)])
     return {
-        "points": [[int(col), int(row)] for row, col in path],
+        "points": points,
         "distance_m": round(distance_cells * cell_size_m, 1),
         "climb_m": round(climb_m, 1),
         "descent_m": round(descent_m, 1),
-        "max_slope_deg": round(max_slope, 2),
-        "max_slope_at": [int(max_slope_cell[1]), int(max_slope_cell[0])],
+        "max_slope_deg": round(float(inner_slopes[steepest_index]), 2),
+        "max_slope_at": [int(inner_cols[steepest_index]), int(inner_rows[steepest_index])],
     }
+
+
+def best_route(allowed, heights, slope, cell_size_m, start, end):
+    """Grid path, smoothed, and measured; None if the stops cannot be connected."""
+    path = grid_path(allowed, start, end)
+    if path is None:
+        return None
+    corners = smooth_path(path, allowed)
+    return measure_route(corners, heights, slope, cell_size_m)
 
 
 def plan_leg(heights, slope, cell_size_m, start, end):
     """Shortest and gentlest route between two (row, col) cells; a route is None if impossible."""
     has_slope = numpy.isfinite(slope)
-
-    path = shortest_path(has_slope, start, end)
-    shortest = None
-    if path is not None:
-        shortest = measure_path(path, heights, slope, cell_size_m)
+    if not has_slope[start] or not has_slope[end]:
+        return None, None
+    shortest = best_route(has_slope, heights, slope, cell_size_m, start, end)
 
     gentlest = None
     gentlest_limit = lowest_connecting_slope(slope, start, end)
     if gentlest_limit is not None:
-        path = shortest_path(has_slope & (slope <= gentlest_limit), start, end)
-        if path is not None:
-            gentlest = measure_path(path, heights, slope, cell_size_m)
+        allowed = with_stops_allowed(has_slope & (slope <= gentlest_limit), start, end)
+        gentlest = best_route(allowed, heights, slope, cell_size_m, start, end)
     return shortest, gentlest
 
 
@@ -146,7 +218,7 @@ def describe(route):
         return "no route (no data)"
     return (
         f"{route['distance_m']} m, climb {route['climb_m']} m, descent {route['descent_m']} m, "
-        f"steepest {route['max_slope_deg']} deg at {route['max_slope_at']}"
+        f"steepest {route['max_slope_deg']} deg at {route['max_slope_at']}, {len(route['points'])} corners"
     )
 
 
@@ -162,14 +234,18 @@ def main():
     with rasterio.open(SLOPE_PATH) as slope_file:
         slope = slope_file.read(1).astype(numpy.float64)
 
+    for stop, cell in zip(stops, stop_cells):
+        print(f"Stop {stop['id']} ground slope: {slope[cell]:.2f} deg")
+
     legs = []
     for index in range(len(stops) - 1):
         from_stop = stops[index]
         to_stop = stops[index + 1]
-        print(f"Leg {from_stop['id']} -> {to_stop['id']} ...")
-        shortest, gentlest = plan_leg(
-            heights, slope, cell_size_m, stop_cells[index], stop_cells[index + 1]
-        )
+        start = stop_cells[index]
+        end = stop_cells[index + 1]
+        straight_m = math.hypot(end[0] - start[0], end[1] - start[1]) * cell_size_m
+        print(f"Leg {from_stop['id']} -> {to_stop['id']} (straight line {straight_m:.1f} m) ...")
+        shortest, gentlest = plan_leg(heights, slope, cell_size_m, start, end)
         print(f"  shortest: {describe(shortest)}")
         print(f"  gentlest: {describe(gentlest)}")
         legs.append({"from": from_stop["id"], "to": to_stop["id"], "shortest": shortest, "gentlest": gentlest})

@@ -3,7 +3,14 @@ import unittest
 
 import numpy
 
-from pipeline.routes import lowest_connecting_slope, measure_path, plan_leg, shortest_path
+from pipeline.routes import (
+    grid_path,
+    lowest_connecting_slope,
+    measure_route,
+    plan_leg,
+    segment_cells,
+    smooth_path,
+)
 
 
 def ridge_grid():
@@ -16,30 +23,60 @@ def ridge_grid():
     return slope, heights
 
 
-class ShortestPathTest(unittest.TestCase):
-    def test_straight_line_length(self):
-        passable = numpy.ones((3, 6), dtype=bool)
-        path = shortest_path(passable, (1, 0), (1, 5))
-        self.assertEqual(len(path), 6)
-        route = measure_path(path, numpy.zeros((3, 6)), numpy.zeros((3, 6)), 1.0)
-        self.assertAlmostEqual(route["distance_m"], 5.0)
-
-    def test_diagonal_length_uses_square_root_of_two(self):
-        passable = numpy.ones((4, 4), dtype=bool)
-        path = shortest_path(passable, (0, 0), (3, 3))
-        route = measure_path(path, numpy.zeros((4, 4)), numpy.zeros((4, 4)), 2.0)
-        self.assertAlmostEqual(route["distance_m"], round(3 * math.sqrt(2) * 2.0, 1))
-
+class GridPathTest(unittest.TestCase):
     def test_blocked_cells_are_avoided(self):
-        passable = numpy.ones((3, 5), dtype=bool)
-        passable[0:2, 2] = False
-        path = shortest_path(passable, (0, 0), (0, 4))
-        self.assertIn((2, 2), [tuple(cell) for cell in path])
+        allowed = numpy.ones((3, 5), dtype=bool)
+        allowed[0:2, 2] = False
+        path = grid_path(allowed, (0, 0), (0, 4))
+        self.assertIn((2, 2), path)
 
     def test_unreachable_returns_none(self):
-        passable = numpy.ones((3, 5), dtype=bool)
-        passable[:, 2] = False
-        self.assertIsNone(shortest_path(passable, (1, 0), (1, 4)))
+        allowed = numpy.ones((3, 5), dtype=bool)
+        allowed[:, 2] = False
+        self.assertIsNone(grid_path(allowed, (1, 0), (1, 4)))
+
+
+class SmoothPathTest(unittest.TestCase):
+    def test_open_ground_becomes_one_straight_segment(self):
+        allowed = numpy.ones((20, 40), dtype=bool)
+        path = grid_path(allowed, (2, 1), (15, 37))
+        corners = smooth_path(path, allowed)
+        self.assertEqual(corners, [(2, 1), (15, 37)])
+        route = measure_route(corners, numpy.zeros((20, 40)), numpy.zeros((20, 40)), 1.0)
+        self.assertAlmostEqual(route["distance_m"], round(math.hypot(13, 36), 1))
+
+    def test_smoothing_never_crosses_blocked_cells(self):
+        allowed = numpy.ones((11, 11), dtype=bool)
+        allowed[2:11, 5] = False  # wall with an opening at the top rows 0-1
+        path = grid_path(allowed, (10, 0), (10, 10))
+        corners = smooth_path(path, allowed)
+        self.assertGreater(len(corners), 2)
+        route = measure_route(corners, numpy.zeros((11, 11)), numpy.zeros((11, 11)), 1.0)
+        self.assertGreater(route["distance_m"], 10.0)
+        for index in range(1, len(corners)):
+            rows, cols = segment_cells(corners[index - 1], corners[index])
+            self.assertTrue(allowed[rows, cols].all())
+
+    def test_cell_size_scales_distance(self):
+        allowed = numpy.ones((4, 4), dtype=bool)
+        corners = smooth_path(grid_path(allowed, (0, 0), (3, 3)), allowed)
+        route = measure_route(corners, numpy.zeros((4, 4)), numpy.zeros((4, 4)), 2.0)
+        self.assertAlmostEqual(route["distance_m"], round(3 * math.sqrt(2) * 2.0, 1))
+
+
+class SegmentCellsTest(unittest.TestCase):
+    def test_diagonal_step_touches_only_its_two_cells(self):
+        rows, cols = segment_cells((0, 0), (1, 1))
+        self.assertEqual(list(zip(rows.tolist(), cols.tolist())), [(0, 0), (1, 1)])
+
+    def test_diagonal_squeeze_never_reports_the_blocked_corner_cells(self):
+        slope = numpy.zeros((2, 2))
+        slope[0, 1] = 40.0
+        slope[1, 0] = 40.0
+        allowed = slope < 10.0
+        corners = smooth_path(grid_path(allowed, (0, 0), (1, 1)), allowed)
+        route = measure_route(corners, numpy.zeros((2, 2)), slope, 1.0)
+        self.assertEqual(route["max_slope_deg"], 0.0)
 
 
 class GentlestRouteTest(unittest.TestCase):
@@ -55,6 +92,13 @@ class GentlestRouteTest(unittest.TestCase):
         self.assertEqual(gentlest["max_slope_at"], [4, 6])  # [col, row] of the gap
         self.assertGreater(gentlest["distance_m"], shortest["distance_m"])
 
+    def test_steep_stop_cell_does_not_set_the_limit(self):
+        slope, heights = ridge_grid()
+        slope[0, 8] = 40.0  # the end stop stands on steep ground
+        self.assertEqual(lowest_connecting_slope(slope, (0, 0), (0, 8)), 10.0)
+        _, gentlest = plan_leg(heights, slope, 1.0, (0, 0), (0, 8))
+        self.assertEqual(gentlest["max_slope_deg"], 10.0)
+
     def test_missing_slope_blocks_both_routes(self):
         slope, heights = ridge_grid()
         slope[:, 4] = numpy.nan
@@ -63,17 +107,17 @@ class GentlestRouteTest(unittest.TestCase):
         self.assertIsNone(gentlest)
 
 
-class MeasurePathTest(unittest.TestCase):
-    def test_climb_and_descent(self):
+class MeasureRouteTest(unittest.TestCase):
+    def test_climb_descent_and_steepest_between_stops(self):
         heights = numpy.array([[0.0, 2.0, 5.0, 4.0, 1.0]])
-        slope = numpy.array([[1.0, 2.0, 9.0, 3.0, 1.0]])
-        path = [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4)]
-        route = measure_path(path, heights, slope, 1.0)
+        slope = numpy.array([[50.0, 2.0, 9.0, 3.0, 1.0]])  # start cell is steep, not counted
+        corners = [(0, 0), (0, 4)]
+        route = measure_route(corners, heights, slope, 1.0)
         self.assertEqual(route["climb_m"], 5.0)
         self.assertEqual(route["descent_m"], 4.0)
         self.assertEqual(route["max_slope_deg"], 9.0)
         self.assertEqual(route["max_slope_at"], [2, 0])
-        self.assertEqual(route["points"][0], [0, 0])
+        self.assertEqual(route["points"], [[0, 0], [4, 0]])
 
 
 if __name__ == "__main__":
