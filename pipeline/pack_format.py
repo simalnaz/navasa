@@ -23,12 +23,18 @@ as_of, label (VALUE_LABELS), and exactly one of:
     tiles   imagery only: url ("tiles/<name>/{z}/{x}/{y}.png"), min_zoom,
             max_zoom, tile_size
 A CALCULATED layer also has "method": how it was calculated.
+Optional "lookup": a path inside the pack to an image the app reads for the
+cursor readout (for example the unit number under the cursor).
+Optional manifest field "methods": {name: text} for calculations that are not
+layers (for example the routes).
 
 Positions are pixel [col, row] on the grid, counted from the top-left corner.
 
-stops.json   [{"id", "label", "position", "position_source",
-               "photos": [{"file", "sol", "camera", "image_id"}]}]
-             photo file is a path inside the pack; image_id may be null.
+stops.json   [{"id", "label", "position", "position_source", "ground_slope_deg",
+               "unit": {"symbol", "name", "description"},
+               "photos": [{"file", "sol", "camera", "image_id", "credit"}]}]
+             photo file is a path inside the pack; ground_slope_deg, unit,
+             unit description and image_id may be null (no data).
 routes.json  [{"from", "to", "shortest": route, "gentlest": route}]
              route: {"points": [[col, row], ...], "distance_m", "climb_m",
                      "descent_m", "max_slope_deg", "max_slope_at": [col, row]}
@@ -72,8 +78,17 @@ REQUIRED_LAYER_FIELDS = (
 )
 REQUIRED_TILES_FIELDS = ("url", "min_zoom", "max_zoom", "tile_size")
 REQUIRED_TILE_PLACEHOLDERS = ("{z}", "{x}", "{y}")
-REQUIRED_STOP_FIELDS = ("id", "label", "position", "position_source", "photos")
-REQUIRED_PHOTO_FIELDS = ("file", "sol", "camera", "image_id")
+REQUIRED_STOP_FIELDS = (
+    "id",
+    "label",
+    "position",
+    "position_source",
+    "ground_slope_deg",
+    "unit",
+    "photos",
+)
+REQUIRED_UNIT_FIELDS = ("symbol", "name", "description")
+REQUIRED_PHOTO_FIELDS = ("file", "sol", "camera", "image_id", "credit")
 REQUIRED_LEG_FIELDS = ("from", "to") + ROUTE_TYPES
 REQUIRED_ROUTE_FIELDS = (
     "points",
@@ -247,6 +262,8 @@ def check_layer(pack_dir, layer, index, errors):
         errors.append(f"{where}: label {layer['label']!r} is not one of {VALUE_LABELS}")
     if layer["label"] == CALCULATED_LABEL and not is_text(layer.get("method")):
         errors.append(f"{where}: a CALCULATED layer needs a 'method'")
+    if "lookup" in layer:
+        check_pack_file(pack_dir, layer["lookup"], f"{where} lookup", errors)
 
     has_file = "file" in layer
     has_tiles = "tiles" in layer
@@ -288,6 +305,22 @@ def check_photo(pack_dir, photo, where, errors):
         errors.append(f"{where}: camera must be text")
     if photo["image_id"] is not None and not is_text(photo["image_id"]):
         errors.append(f"{where}: image_id must be text or null")
+    if not is_text(photo["credit"]):
+        errors.append(f"{where}: credit must be text")
+
+
+def check_unit(unit, where, errors):
+    if unit is None:
+        return
+    if not isinstance(unit, dict):
+        errors.append(f"{where}: must be an object or null")
+        return
+    if not check_required_fields(unit, REQUIRED_UNIT_FIELDS, where, errors):
+        return
+    if not is_text(unit["symbol"]) or not is_text(unit["name"]):
+        errors.append(f"{where}: symbol and name must be text")
+    if unit["description"] is not None and not is_text(unit["description"]):
+        errors.append(f"{where}: description must be text or null")
 
 
 def check_stops(pack_dir, stops, grid, errors):
@@ -311,6 +344,10 @@ def check_stops(pack_dir, stops, grid, errors):
         if not is_text(stop["position_source"]):
             errors.append(f"{where}: position_source must be text")
         check_position(stop["position"], grid, f"{where} position", errors)
+        ground_slope = stop["ground_slope_deg"]
+        if ground_slope is not None and not is_number(ground_slope):
+            errors.append(f"{where}: ground_slope_deg must be a number or null")
+        check_unit(stop["unit"], f"{where} unit", errors)
         photos = stop["photos"]
         if not isinstance(photos, list) or len(photos) == 0:
             errors.append(f"{where}: photos must be a non-empty list")
@@ -367,6 +404,14 @@ def validate_pack(pack_dir):
 
     check_site(manifest["site"], errors)
     grid = check_grid(manifest["grid"], errors)
+    if "methods" in manifest:
+        methods = manifest["methods"]
+        if not isinstance(methods, dict):
+            errors.append("manifest methods: must be an object")
+        else:
+            for method_name, method_text in methods.items():
+                if not is_text(method_text):
+                    errors.append(f"manifest methods {method_name!r}: must be text")
     check_layers(pack_dir, manifest["layers"], errors)
 
     stop_ids = set()

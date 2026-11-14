@@ -1,0 +1,309 @@
+{
+  "id": "jezero_v1",
+  "version": "1.0.0",
+  "created": "2026-11-14",
+  "site": {
+    "name": "Jezero Crater",
+    "bounds_px": [
+      0,
+      0,
+      10637,
+      5134
+    ],
+    "bounds_lonlat": [
+      77.28830667079662,
+      18.427744815914394,
+      77.46775929467238,
+      18.51435850125596
+    ]
+  },
+  "grid": {
+    "width": 10637,
+    "height": 5134,
+    "metres_per_pixel": 1.0
+  },
+  "layers": [
+    {
+      "id": "hirise",
+      "kind": "imagery",
+      "tiles": {
+        "url": "tiles/hirise/{z}/{x}/{y}.jpg",
+        "min_zoom": -6,
+        "max_zoom": 2,
+        "tile_size": 256
+      },
+      "units": null,
+      "legend": null,
+      "source": "HiRISE orthomosaic, 25 cm/pixel (Mars 2020 Terrain Relative Navigation). MRO, NASA/JPL-Caltech/University of Arizona; mosaic by USGS Astrogeology Science Center",
+      "product_id": "JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first",
+      "as_of": null,
+      "label": "NASA DATA"
+    },
+    {
+      "id": "slope",
+      "kind": "raster-continuous",
+      "file": "layers/slope.png",
+      "units": "degrees",
+      "legend": [
+        {
+          "from_deg": 0,
+          "to_deg": 5,
+          "color": [
+            68,
+            1,
+            84
+          ]
+        },
+        {
+          "from_deg": 5,
+          "to_deg": 10,
+          "color": [
+            72,
+            25,
+            107
+          ]
+        },
+        {
+          "from_deg": 10,
+          "to_deg": 15,
+          "color": [
+            70,
+            47,
+            124
+          ]
+        },
+        {
+          "from_deg": 15,
+          "to_deg": 20,
+          "color": [
+            64,
+            67,
+            135
+          ]
+        },
+        {
+          "from_deg": 20,
+          "to_deg": 25,
+          "color": [
+            56,
+            86,
+            139
+          ]
+        },
+        {
+          "from_deg": 25,
+          "to_deg": 30,
+          "color": [
+            48,
+            103,
+            141
+          ]
+        },
+        {
+          "from_deg": 30,
+          "to_deg": 35,
+          "color": [
+            41,
+            120,
+            142
+          ]
+        },
+        {
+          "from_deg": 35,
+          "to_deg": 40,
+          "color": [
+            35,
+            136,
+            141
+          ]
+        },
+        {
+          "from_deg": 40,
+          "to_deg": 45,
+          "color": [
+            30,
+            152,
+            138
+          ]
+        },
+        {
+          "from_deg": 45,
+          "to_deg": 50,
+          "color": [
+            34,
+            167,
+            132
+          ]
+        },
+        {
+          "from_deg": 50,
+          "to_deg": 55,
+          "color": [
+            53,
+            183,
+            120
+          ]
+        },
+        {
+          "from_deg": 55,
+          "to_deg": 60,
+          "color": [
+            83,
+            197,
+            103
+          ]
+        },
+        {
+          "from_deg": 60,
+          "to_deg": 65,
+          "color": [
+            121,
+            209,
+            81
+          ]
+        },
+        {
+          "from_deg": 65,
+          "to_deg": 70,
+          "color": [
+            165,
+            218,
+            53
+          ]
+        },
+        {
+          "from_deg": 70,
+          "to_deg": 75,
+          "color": [
+            210,
+            225,
+            27
+          ]
+        },
+        {
+          "from_deg": 75,
+          "to_deg": 80,
+          "color": [
+            253,
+            231,
+            36
+          ]
+        }
+      ],
+      "source": "HiRISE DTM mosaic, ~1 m/pixel (Mars 2020 Terrain Relative Navigation). MRO, NASA/JPL-Caltech/University of Arizona; mosaic by USGS Astrogeology Science Center",
+      "product_id": "JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40",
+      "as_of": null,
+      "label": "CALCULATED",
+      "method": "Angle of the steepest rise at each 1 m cell, from the height differences to the neighbouring cells of the HiRISE DTM (central differences)."
+    },
+    {
+      "id": "geology",
+      "kind": "raster-categorical",
+      "file": "layers/geology.png",
+      "lookup": "layers/geology_ids.png",
+      "units": null,
+      "legend": [
+        {
+          "id": 1,
+          "symbol": "Aeb",
+          "name": "Eolian bedform unit",
+          "color": [
+            31,
+            119,
+            180
+          ],
+          "pattern": "diagonal"
+        },
+        {
+          "id": 4,
+          "symbol": "NHjf2",
+          "name": "Jezero fan 2 unit",
+          "color": [
+            255,
+            187,
+            120
+          ],
+          "pattern": "vertical"
+        },
+        {
+          "id": 5,
+          "symbol": "Njf",
+          "name": "Jezero floor unit",
+          "color": [
+            44,
+            160,
+            44
+          ],
+          "pattern": "cross"
+        },
+        {
+          "id": 6,
+          "symbol": "Nle",
+          "name": "Lower etched unit",
+          "color": [
+            152,
+            223,
+            138
+          ],
+          "pattern": "dots"
+        },
+        {
+          "id": 7,
+          "symbol": "Nnp1",
+          "name": "Nili Planum 1 unit",
+          "color": [
+            214,
+            39,
+            40
+          ],
+          "pattern": "diagonal"
+        },
+        {
+          "id": 10,
+          "symbol": "Nue",
+          "name": "Upper etched unit",
+          "color": [
+            197,
+            176,
+            213
+          ],
+          "pattern": "vertical"
+        },
+        {
+          "id": 13,
+          "symbol": "cr",
+          "name": "Crater rim unit",
+          "color": [
+            227,
+            119,
+            194
+          ],
+          "pattern": "diagonal"
+        },
+        {
+          "id": 14,
+          "symbol": "su",
+          "name": "Smooth unit, undivided",
+          "color": [
+            247,
+            182,
+            210
+          ],
+          "pattern": "back-diagonal"
+        }
+      ],
+      "source": "Sun, V.Z., and Stack, K.M., 2020, Geologic Map of Jezero Crater and the Nili Planum Region, Mars: USGS Scientific Investigations Map 3464",
+      "product_id": "SIM 3464, layer GeoUnits_v1",
+      "as_of": "2020",
+      "label": "NASA DATA"
+    }
+  ],
+  "methods": {
+    "shortest": "Least horizontal distance over cells with terrain data: 8-neighbour grid path (scikit-image), then straightened wherever a straight line crosses only such cells.",
+    "gentlest": "The lowest slope S for which the two stops are still connected through cells with slope <= S (the stops' own cells not counted), then the shortest route through those cells. Its steepest point is S.",
+    "distance": "Horizontal length along the route.",
+    "climb_descent": "Sum of all height rises / drops from cell to cell along the route (HiRISE DTM).",
+    "steepest": "Steepest 1 m cell on the route, the two stops not counted.",
+    "ground_slope": "Slope of the 1 m cell at the stop position."
+  }
+}

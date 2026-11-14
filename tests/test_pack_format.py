@@ -70,8 +70,10 @@ def write_small_valid_pack(pack_dir):
             "label": "Stop 1",
             "position": [10, 10],
             "position_source": "test",
+            "ground_slope_deg": 1.5,
+            "unit": {"symbol": "Njf", "name": "Test unit", "description": "test"},
             "photos": [
-                {"file": "photos/stop1.jpg", "sol": 2, "camera": "test", "image_id": None}
+                {"file": "photos/stop1.jpg", "sol": 2, "camera": "test", "image_id": None, "credit": "test"}
             ],
         },
         {
@@ -79,8 +81,10 @@ def write_small_valid_pack(pack_dir):
             "label": "Stop 2",
             "position": [50, 40],
             "position_source": "test",
+            "ground_slope_deg": None,
+            "unit": None,
             "photos": [
-                {"file": "photos/stop1.jpg", "sol": 3, "camera": "test", "image_id": "ABC"}
+                {"file": "photos/stop1.jpg", "sol": 3, "camera": "test", "image_id": "ABC", "credit": "test"}
             ],
         },
     ]
@@ -245,6 +249,24 @@ class PackFormatTest(unittest.TestCase):
             stops[0]["photos"] = []
         self.edit_json("stops.json", change)
         self.assert_invalid("photos must be a non-empty list")
+
+    def test_unit_needs_name(self):
+        def change(stops):
+            del stops[0]["unit"]["name"]
+        self.edit_json("stops.json", change)
+        self.assert_invalid("missing field 'name'")
+
+    def test_photo_needs_credit(self):
+        def change(stops):
+            del stops[0]["photos"][0]["credit"]
+        self.edit_json("stops.json", change)
+        self.assert_invalid("missing field 'credit'")
+
+    def test_lookup_must_exist(self):
+        def change(manifest):
+            manifest["layers"][0]["lookup"] = "layers/missing.png"
+        self.edit_json("manifest.json", change)
+        self.assert_invalid("lookup")
 
     def test_route_to_unknown_stop(self):
         def change(routes):
