@@ -5,7 +5,14 @@ import unittest
 import numpy
 from PIL import Image
 
-from pipeline.build_pack import photo_file_name, shrink_photo, slope_band_image
+from pipeline.build_pack import (
+    decode_readout,
+    encode_readout,
+    photo_file_name,
+    save_overlay_tiles,
+    shrink_photo,
+    slope_band_image,
+)
 
 
 class SlopeBandImageTest(unittest.TestCase):
@@ -19,6 +26,34 @@ class SlopeBandImageTest(unittest.TestCase):
         self.assertEqual(image[0, 3, 0:3].tolist(), legend[2]["color"])
         self.assertEqual(image[1, 0, 3], 0)  # no slope is transparent
         self.assertEqual(image[0, 0, 3], 170)
+
+
+class OverlayTilesTest(unittest.TestCase):
+    def test_zoom_levels_and_tile_count(self):
+        with tempfile.TemporaryDirectory() as tiles_dir:
+            image = numpy.zeros((300, 600, 4), dtype=numpy.uint8)
+            image[:, :, 3] = 200
+            counts = save_overlay_tiles(image, tiles_dir, 256)
+            self.assertEqual(counts, {0: 6, -1: 2, -2: 1})  # 3x2, then 2x1, then 1x1
+            with Image.open(os.path.join(tiles_dir, "0", "2", "1.png")) as edge_tile:
+                self.assertEqual(edge_tile.getpixel((10, 10))[3], 200)  # image part
+                self.assertEqual(edge_tile.getpixel((200, 200))[3], 0)  # padding is transparent
+
+
+class ReadoutTest(unittest.TestCase):
+    def test_round_trip_and_sampling(self):
+        heights = numpy.arange(64, dtype=float).reshape(8, 8) * 1.5 - 2600.0
+        heights[4, 4] = numpy.nan
+        image = encode_readout(heights, -2600.0, 0.1, 4)
+        self.assertEqual(image.shape, (2, 2, 3))
+        values = decode_readout(image, -2600.0, 0.1)
+        self.assertAlmostEqual(values[0, 1], heights[0, 4], places=6)
+        self.assertAlmostEqual(values[1, 0], heights[4, 0], places=6)
+        self.assertTrue(numpy.isnan(values[1, 1]))  # no data stays no data
+
+    def test_too_large_range_is_refused(self):
+        with self.assertRaises(ValueError):
+            encode_readout(numpy.array([[0.0, 10000.0]]), 0.0, 0.1, 1)
 
 
 class PhotoTest(unittest.TestCase):

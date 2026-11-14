@@ -218,10 +218,11 @@ class PackFormatTest(unittest.TestCase):
         self.edit_json("manifest.json", change)
         self.assertEqual(validate_pack(self.pack_dir), [])
 
-    def test_tiles_only_for_imagery(self):
+    def test_tiles_not_for_points(self):
         os.makedirs(os.path.join(self.pack_dir, "tiles", "slope"))
 
         def change(manifest):
+            manifest["layers"][0]["kind"] = "points"
             del manifest["layers"][0]["file"]
             manifest["layers"][0]["tiles"] = {
                 "url": "tiles/slope/{z}/{x}/{y}.png",
@@ -230,7 +231,7 @@ class PackFormatTest(unittest.TestCase):
                 "tile_size": 256,
             }
         self.edit_json("manifest.json", change)
-        self.assert_invalid("only imagery layers can use tiles")
+        self.assert_invalid("layers can use tiles")
 
     def test_stop_outside_grid(self):
         def change(stops):
@@ -261,12 +262,6 @@ class PackFormatTest(unittest.TestCase):
             del stops[0]["photos"][0]["credit"]
         self.edit_json("stops.json", change)
         self.assert_invalid("missing field 'credit'")
-
-    def test_lookup_must_exist(self):
-        def change(manifest):
-            manifest["layers"][0]["lookup"] = "layers/missing.png"
-        self.edit_json("manifest.json", change)
-        self.assert_invalid("lookup")
 
     def test_route_to_unknown_stop(self):
         def change(routes):

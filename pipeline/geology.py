@@ -14,12 +14,13 @@ descriptions come from data/unit_descriptions.json, copied word for word from
 the map's Description of Map Units; units without one get null.
 
 Outputs:
-    web/data/jezero_v1/layers/geology.png      overlay: colour fill, a hatch pattern
-                                               per unit and unit outlines, so units
-                                               are told apart without colour alone
-    web/data/jezero_v1/layers/geology_ids.png  lookup image: grey value = unit number
-    data/work/geology.json                     units (number, symbol, name, description,
-                                               colour, pattern), unit at each stop
+    data/work/geology_overlay.png  overlay: colour fill, a hatch pattern per unit and
+                                   unit outlines, so units are told apart without
+                                   colour alone (build_pack.py cuts it into tiles)
+    data/work/geology_ids.png      unit number of every cell (build_pack.py samples it
+                                   for the cursor readout)
+    data/work/geology.json         units (number, symbol, name, description, colour,
+                                   pattern), unit at each stop
 
 Usage:
     python -m pipeline.geology
@@ -35,13 +36,13 @@ from matplotlib import colormaps
 from PIL import Image
 from rasterio.features import rasterize
 
-from pipeline.crop_layers import CROPPED_DTM_PATH, PACK_DIR, PROJECT_ROOT, RAW_DIR, WORK_DIR
+from pipeline.crop_layers import CROPPED_DTM_PATH, PROJECT_ROOT, RAW_DIR, WORK_DIR
 from pipeline.stops import load_stops, lonlat_to_pixel
 
 GEOUNITS_PATH = os.path.join(RAW_DIR, "sim3464_geounits.geojson")
 DESCRIPTIONS_PATH = os.path.join(PROJECT_ROOT, "data", "unit_descriptions.json")
-OVERLAY_PATH = os.path.join(PACK_DIR, "layers", "geology.png")
-LOOKUP_PATH = os.path.join(PACK_DIR, "layers", "geology_ids.png")
+OVERLAY_PATH = os.path.join(WORK_DIR, "geology_overlay.png")
+LOOKUP_PATH = os.path.join(WORK_DIR, "geology_ids.png")
 GEOLOGY_JSON_PATH = os.path.join(WORK_DIR, "geology.json")
 
 NO_UNIT = 0

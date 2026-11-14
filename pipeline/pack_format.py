@@ -20,13 +20,15 @@ manifest.json
 Each layer has: id, kind (LAYER_KINDS), units, legend, source, product_id,
 as_of, label (VALUE_LABELS), and exactly one of:
     file    a path inside the pack
-    tiles   imagery only: url ("tiles/<name>/{z}/{x}/{y}.png"), min_zoom,
-            max_zoom, tile_size
+    tiles   imagery and raster layers: url ("tiles/<name>/{z}/{x}/{y}.png"),
+            min_zoom, max_zoom, tile_size. At zoom z, one grid pixel is 2**z
+            tile pixels.
 A CALCULATED layer also has "method": how it was calculated.
-Optional "lookup": a path inside the pack to an image the app reads for the
-cursor readout (for example the unit number under the cursor).
 Optional manifest field "methods": {name: text} for calculations that are not
 layers (for example the routes).
+Optional manifest field "readouts": [{"id", "file", "units", "base", "step",
+"sample_every_px", "no_data_code", "label", "source"}]: images holding cursor
+readout values as 16-bit codes (value = base + code * step).
 
 Positions are pixel [col, row] on the grid, counted from the top-left corner.
 
@@ -59,6 +61,7 @@ LAYER_KINDS = (
     "vector",
     "points",
 )
+TILED_KINDS = ("imagery", "raster-continuous", "raster-categorical")
 VALUE_LABELS = ("NASA DATA", "CALCULATED")
 CALCULATED_LABEL = "CALCULATED"
 ROUTE_TYPES = ("shortest", "gentlest")
@@ -75,6 +78,17 @@ REQUIRED_LAYER_FIELDS = (
     "product_id",
     "as_of",
     "label",
+)
+REQUIRED_READOUT_FIELDS = (
+    "id",
+    "file",
+    "units",
+    "base",
+    "step",
+    "sample_every_px",
+    "no_data_code",
+    "label",
+    "source",
 )
 REQUIRED_TILES_FIELDS = ("url", "min_zoom", "max_zoom", "tile_size")
 REQUIRED_TILE_PLACEHOLDERS = ("{z}", "{x}", "{y}")
@@ -262,8 +276,6 @@ def check_layer(pack_dir, layer, index, errors):
         errors.append(f"{where}: label {layer['label']!r} is not one of {VALUE_LABELS}")
     if layer["label"] == CALCULATED_LABEL and not is_text(layer.get("method")):
         errors.append(f"{where}: a CALCULATED layer needs a 'method'")
-    if "lookup" in layer:
-        check_pack_file(pack_dir, layer["lookup"], f"{where} lookup", errors)
 
     has_file = "file" in layer
     has_tiles = "tiles" in layer
@@ -272,8 +284,8 @@ def check_layer(pack_dir, layer, index, errors):
     elif has_file:
         check_pack_file(pack_dir, layer["file"], where, errors)
     elif has_tiles:
-        if layer["kind"] != "imagery":
-            errors.append(f"{where}: only imagery layers can use tiles")
+        if layer["kind"] not in TILED_KINDS:
+            errors.append(f"{where}: only {TILED_KINDS} layers can use tiles")
         check_tiles(pack_dir, layer["tiles"], where, errors)
     else:
         errors.append(f"{where}: needs 'file' or 'tiles'")
@@ -392,6 +404,26 @@ def check_routes(legs, stop_ids, grid, errors):
             check_route(leg[route_type], grid, f"{where} {route_type}", errors)
 
 
+def check_readouts(pack_dir, readouts, errors):
+    if not isinstance(readouts, list):
+        errors.append("manifest readouts: must be a list")
+        return
+    for index, readout in enumerate(readouts):
+        where = f"manifest readout {index}"
+        if not isinstance(readout, dict):
+            errors.append(f"{where}: must be an object")
+            continue
+        if not check_required_fields(readout, REQUIRED_READOUT_FIELDS, where, errors):
+            continue
+        check_pack_file(pack_dir, readout["file"], where, errors)
+        if not is_number(readout["base"]) or not is_number(readout["step"]) or readout["step"] <= 0:
+            errors.append(f"{where}: base must be a number and step a positive number")
+        if not is_integer(readout["sample_every_px"]) or readout["sample_every_px"] <= 0:
+            errors.append(f"{where}: sample_every_px must be a positive integer")
+        if readout["label"] not in VALUE_LABELS:
+            errors.append(f"{where}: label {readout['label']!r} is not one of {VALUE_LABELS}")
+
+
 def validate_pack(pack_dir):
     """Check a data pack folder. Return a list of problems; an empty list means valid."""
     errors = []
@@ -404,6 +436,8 @@ def validate_pack(pack_dir):
 
     check_site(manifest["site"], errors)
     grid = check_grid(manifest["grid"], errors)
+    if "readouts" in manifest:
+        check_readouts(pack_dir, manifest["readouts"], errors)
     if "methods" in manifest:
         methods = manifest["methods"]
         if not isinstance(methods, dict):

@@ -5,10 +5,19 @@ web/data/jezero_v1/:
     manifest.json       site, grid, layers (with sources and methods), methods of the routes
     stops.json          stops with grid position, ground slope, rock unit and photos
     routes.json         shortest and gentlest route per leg (copied from data/work)
-    layers/slope.png    slope in DEFAULT_SLOPE_BANDS["band_deg"] bands (display choice only)
+    tiles/slope/        slope in DEFAULT_SLOPE_BANDS["band_deg"] bands (display choice only), PNG tiles
+    tiles/geology/      geology overlay from geology.py, PNG tiles
+    layers/elevation_readout.png, layers/slope_readout.png, layers/unit_readout.png
+                        cursor readout values, sampled every DEFAULT_READOUT["sample_every_px"]
+                        cells (see encode_readout)
     photos/*.jpg        stop photos, longest side DEFAULT_PHOTOS["max_side_px"]
 
-The 25 cm tiles and the geology images were written by crop_layers.py and geology.py.
+Overlay tiles: zoom 0 shows one grid cell (1 m) per tile pixel; each lower zoom
+halves the size (every second pixel, so unit colours never mix), down to the
+zoom where the whole area fits in one tile. The browser enlarges zoom 0 tiles
+when zoomed in further.
+
+The 25 cm tiles were written by crop_layers.py.
 
 Usage:
     python -m pipeline.build_pack
@@ -32,7 +41,7 @@ from pipeline.geology import GEOLOGY_JSON_PATH, LOOKUP_PATH, OVERLAY_PATH
 from pipeline.pack_format import validate_pack
 from pipeline.routes import ROUTES_PATH
 from pipeline.stops import load_stops, lonlat_to_pixel
-from pipeline.terrain import SLOPE_PATH
+from pipeline.terrain import SLOPE_PATH, read_heights
 
 PACK_ID = "jezero_v1"
 PACK_VERSION = "1.0.0"
@@ -42,14 +51,20 @@ PHOTO_CREDIT = "NASA/JPL-Caltech"
 # Display choices only (no meaning of safe or unsafe).
 DEFAULT_SLOPE_BANDS = {"band_deg": 5, "colormap": "viridis", "alpha": 170}
 DEFAULT_PHOTOS = {"max_side_px": 1600, "jpeg_quality": 85}
+# Owner's choice: readout values every 4 cells keep the files small (about 8 MB instead of 94 MB).
+DEFAULT_READOUT = {"sample_every_px": 4, "elevation_step_m": 0.1, "slope_step_deg": 0.01}
+READOUT_NO_DATA_CODE = 65535
+TILE_SIZE = 256
 
 HIRISE_SOURCE = (
     "HiRISE orthomosaic, 25 cm/pixel (Mars 2020 Terrain Relative Navigation). "
-    "MRO, NASA/JPL-Caltech/University of Arizona; mosaic by USGS Astrogeology Science Center"
+    "MRO, NASA/JPL-Caltech/University of Arizona; mosaic by USGS Astrogeology Science Center "
+    "(Fergason and others, 2020, doi:10.5066/P9QJDP48)"
 )
 DTM_SOURCE = (
     "HiRISE DTM mosaic, ~1 m/pixel (Mars 2020 Terrain Relative Navigation). "
-    "MRO, NASA/JPL-Caltech/University of Arizona; mosaic by USGS Astrogeology Science Center"
+    "MRO, NASA/JPL-Caltech/University of Arizona; mosaic by USGS Astrogeology Science Center "
+    "(Fergason and others, 2020, doi:10.5066/P9REJ9JN)"
 )
 GEOLOGY_SOURCE = (
     "Sun, V.Z., and Stack, K.M., 2020, Geologic Map of Jezero Crater and the "
@@ -73,6 +88,7 @@ METHODS = {
     "climb_descent": "Sum of all height rises / drops from cell to cell along the route (HiRISE DTM).",
     "steepest": "Steepest 1 m cell on the route, the two stops not counted.",
     "ground_slope": "Slope of the 1 m cell at the stop position.",
+    "readout": "Cursor readout of elevation, slope and rock unit: value of the nearest 1 m cell sampled every 4 m.",
 }
 
 
@@ -96,6 +112,100 @@ def slope_band_image(slope, band_deg, colormap_name, alpha):
         image[in_band, 3] = alpha
         legend.append({"from_deg": band * band_deg, "to_deg": (band + 1) * band_deg, "color": color})
     return image, legend
+
+
+def save_overlay_tiles(image, tiles_dir, tile_size):
+    """Cut an RGBA image into PNG tiles, zoom 0 down to one tile. Returns {zoom: tile count}."""
+    if os.path.isdir(tiles_dir):
+        shutil.rmtree(tiles_dir)
+    tile_counts = {}
+    zoom = 0
+    while True:
+        count = 0
+        for tile_row in range(math.ceil(image.shape[0] / tile_size)):
+            for tile_col in range(math.ceil(image.shape[1] / tile_size)):
+                part = image[
+                    tile_row * tile_size : (tile_row + 1) * tile_size,
+                    tile_col * tile_size : (tile_col + 1) * tile_size,
+                ]
+                tile = numpy.zeros((tile_size, tile_size, 4), dtype=numpy.uint8)
+                tile[: part.shape[0], : part.shape[1]] = part
+                folder = os.path.join(tiles_dir, str(zoom), str(tile_col))
+                os.makedirs(folder, exist_ok=True)
+                Image.fromarray(tile, mode="RGBA").save(os.path.join(folder, f"{tile_row}.png"), optimize=True)
+                count += 1
+        tile_counts[zoom] = count
+        if image.shape[0] <= tile_size and image.shape[1] <= tile_size:
+            break
+        image = image[::2, ::2]
+        zoom -= 1
+    return tile_counts
+
+
+def overlay_tiles_entry(name, tile_counts):
+    return {
+        "url": f"tiles/{name}/{{z}}/{{x}}/{{y}}.png",
+        "min_zoom": min(tile_counts),
+        "max_zoom": max(tile_counts),
+        "tile_size": TILE_SIZE,
+    }
+
+
+def encode_readout(values, base, step, sample_every_px):
+    """Sample every n-th cell and store each value as a 16-bit code in red (high byte) and green (low byte).
+
+    value = base + code * step. Cells without a value get READOUT_NO_DATA_CODE.
+    The cell at grid [col, row] is read from readout pixel
+    [round(col / n), round(row / n)] (clipped to the image).
+    Returns an RGB image array.
+    """
+    sampled = values[::sample_every_px, ::sample_every_px].astype(numpy.float64)
+    has_value = numpy.isfinite(sampled)
+    codes = numpy.full(sampled.shape, READOUT_NO_DATA_CODE, dtype=numpy.uint32)
+    codes[has_value] = numpy.rint((sampled[has_value] - base) / step).astype(numpy.uint32)
+    if codes[has_value].size > 0 and codes[has_value].max() >= READOUT_NO_DATA_CODE:
+        raise ValueError("readout values do not fit in 16 bits with this step")
+    image = numpy.zeros(sampled.shape + (3,), dtype=numpy.uint8)
+    image[..., 0] = codes >> 8
+    image[..., 1] = codes & 255
+    return image
+
+
+def decode_readout(image, base, step):
+    """Inverse of encode_readout, for checks: values with NaN where there is no data."""
+    codes = image[..., 0].astype(numpy.uint32) * 256 + image[..., 1].astype(numpy.uint32)
+    values = base + codes.astype(numpy.float64) * step
+    values[codes == READOUT_NO_DATA_CODE] = numpy.nan
+    return values
+
+
+def write_readouts(heights, slope, unit_ids):
+    """Write the readout images; return their manifest entries."""
+    every = DEFAULT_READOUT["sample_every_px"]
+    elevation_base = float(math.floor(numpy.nanmin(heights)))
+    entries = []
+    for readout_id, values, base, step, units, label, source in (
+        ("elevation", heights, elevation_base, DEFAULT_READOUT["elevation_step_m"], "m", "NASA DATA", DTM_SOURCE),
+        ("slope", slope, 0.0, DEFAULT_READOUT["slope_step_deg"], "degrees", "CALCULATED", DTM_SOURCE),
+        ("unit", unit_ids.astype(numpy.float64), 0.0, 1.0, None, "NASA DATA", GEOLOGY_SOURCE),
+    ):
+        file_name = f"layers/{readout_id}_readout.png"
+        image = encode_readout(values, base, step, every)
+        Image.fromarray(image, mode="RGB").save(os.path.join(PACK_DIR, file_name), optimize=True)
+        entries.append(
+            {
+                "id": readout_id,
+                "file": file_name,
+                "units": units,
+                "base": base,
+                "step": step,
+                "sample_every_px": every,
+                "no_data_code": READOUT_NO_DATA_CODE,
+                "label": label,
+                "source": source,
+            }
+        )
+    return entries
 
 
 def shrink_photo(source_path, target_path, max_side_px, jpeg_quality):
@@ -165,7 +275,7 @@ def build_stops(stops, slope, geology, dtm):
     return pack_stops
 
 
-def build_manifest(grid, slope_legend, geology, tile_zooms):
+def build_manifest(grid, slope_legend, geology, tile_zooms, readouts, slope_tiles, geology_tiles):
     geology_legend = []
     for unit in geology["units"]:
         geology_legend.append(
@@ -200,26 +310,25 @@ def build_manifest(grid, slope_legend, geology, tile_zooms):
                 "legend": None,
                 "source": HIRISE_SOURCE,
                 "product_id": "JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first",
-                "as_of": None,
+                "as_of": "2020",
                 "label": "NASA DATA",
             },
             {
                 "id": "slope",
                 "kind": "raster-continuous",
-                "file": "layers/slope.png",
+                "tiles": slope_tiles,
                 "units": "degrees",
                 "legend": slope_legend,
                 "source": DTM_SOURCE,
                 "product_id": "JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40",
-                "as_of": None,
+                "as_of": "2020",
                 "label": "CALCULATED",
                 "method": SLOPE_METHOD,
             },
             {
                 "id": "geology",
                 "kind": "raster-categorical",
-                "file": "layers/geology.png",
-                "lookup": "layers/geology_ids.png",
+                "tiles": geology_tiles,
                 "units": None,
                 "legend": geology_legend,
                 "source": GEOLOGY_SOURCE,
@@ -228,6 +337,7 @@ def build_manifest(grid, slope_legend, geology, tile_zooms):
                 "label": "NASA DATA",
             },
         ],
+        "readouts": readouts,
         "methods": METHODS,
     }
 
@@ -254,12 +364,26 @@ def main():
         geology = json.load(geology_file)
     with rasterio.open(SLOPE_PATH) as slope_file:
         slope = slope_file.read(1)
+    with rasterio.open(CROPPED_DTM_PATH) as dtm:
+        heights = read_heights(dtm)
 
-    os.makedirs(os.path.join(PACK_DIR, "layers"), exist_ok=True)
+    layers_dir = os.path.join(PACK_DIR, "layers")
+    if os.path.isdir(layers_dir):
+        shutil.rmtree(layers_dir)
+    os.makedirs(layers_dir)
     slope_image, slope_legend = slope_band_image(
         slope, DEFAULT_SLOPE_BANDS["band_deg"], DEFAULT_SLOPE_BANDS["colormap"], DEFAULT_SLOPE_BANDS["alpha"]
     )
-    Image.fromarray(slope_image, mode="RGBA").save(os.path.join(PACK_DIR, "layers", "slope.png"), optimize=True)
+    slope_tile_counts = save_overlay_tiles(slope_image, os.path.join(PACK_DIR, "tiles", "slope"), TILE_SIZE)
+    del slope_image
+    Image.MAX_IMAGE_PIXELS = None  # our own 54 MP images from geology.py
+    with Image.open(OVERLAY_PATH) as overlay_file:
+        geology_overlay = numpy.array(overlay_file.convert("RGBA"))
+    geology_tile_counts = save_overlay_tiles(geology_overlay, os.path.join(PACK_DIR, "tiles", "geology"), TILE_SIZE)
+    del geology_overlay
+    with Image.open(LOOKUP_PATH) as lookup_file:
+        unit_ids = numpy.array(lookup_file)
+    readouts = write_readouts(heights, slope, unit_ids)
 
     stops = load_stops()
     with rasterio.open(CROPPED_DTM_PATH) as dtm:
@@ -268,7 +392,15 @@ def main():
     shutil.copyfile(ROUTES_PATH, os.path.join(PACK_DIR, "routes.json"))
     with open(os.path.join(PACK_DIR, "stops.json"), "w", encoding="utf-8") as stops_file:
         json.dump(pack_stops, stops_file, ensure_ascii=False, indent=2)
-    manifest = build_manifest(grid, slope_legend, geology, tile_zoom_levels())
+    manifest = build_manifest(
+        grid,
+        slope_legend,
+        geology,
+        tile_zoom_levels(),
+        readouts,
+        overlay_tiles_entry("slope", slope_tile_counts),
+        overlay_tiles_entry("geology", geology_tile_counts),
+    )
     with open(os.path.join(PACK_DIR, "manifest.json"), "w", encoding="utf-8") as manifest_file:
         json.dump(manifest, manifest_file, ensure_ascii=False, indent=2)
 
