@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'">
 <title>NAVASA</title>
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
 <link rel="stylesheet" href="styles.css">
 <script src="vendor/leaflet/leaflet.js" defer></script>
@@ -16,6 +17,8 @@
   <span id="status-site">SITE —</span>
   <span id="status-pack">PACK —</span>
   <span id="status-as-of">AS OF —</span>
+  <span id="status-offline" class="status-offline">OFFLINE —</span>
+  <button type="button" id="wrist-toggle" class="wrist-toggle" aria-pressed="false">WRIST VIEW</button>
 </header>
 
 <main class="layout">
@@ -27,38 +30,43 @@
       <button type="button" role="tab" data-tab="route" aria-selected="false">ROUTE</button>
       <button type="button" role="tab" data-tab="stops" aria-selected="false">STOPS</button>
       <button type="button" role="tab" data-tab="data" aria-selected="false">DATA</button>
+      <button type="button" role="tab" data-tab="hud" aria-selected="false">HUD</button>
     </nav>
 
     <div class="tab-body" id="tab-map" role="tabpanel">
       <h2 class="section-title">&gt; LAYERS</h2>
       <div id="layer-list" class="layer-list"></div>
-
-      <h2 class="section-title">&gt; CURSOR READOUT</h2>
-      <dl class="readout">
-        <dt>ELEVATION</dt><dd id="readout-elevation">—</dd>
-        <dt>SLOPE</dt><dd id="readout-slope">—</dd>
-        <dt>UNIT</dt><dd id="readout-unit">—</dd>
-      </dl>
-      <p id="readout-note" class="note"></p>
     </div>
 
-    <div class="tab-body" id="tab-route" role="tabpanel" hidden>
-      <h2 class="section-title">&gt; ROUTE</h2>
-    </div>
+    <div class="tab-body" id="tab-route" role="tabpanel" hidden></div>
 
-    <div class="tab-body" id="tab-stops" role="tabpanel" hidden>
-      <h2 class="section-title">&gt; STOPS</h2>
-    </div>
+    <div class="tab-body" id="tab-stops" role="tabpanel" hidden></div>
 
-    <div class="tab-body" id="tab-data" role="tabpanel" hidden>
-      <h2 class="section-title">&gt; DATA</h2>
-    </div>
+    <div class="tab-body" id="tab-data" role="tabpanel" hidden></div>
+
+    <div class="tab-body" id="tab-hud" role="tabpanel" hidden></div>
 
     <footer class="labels-key">
       <span>■ NASA DATA</span><span>◆ CALCULATED</span>
     </footer>
   </section>
+
+  <div class="wrist-strip" id="wrist-strip" aria-live="polite">
+    <span id="strip-stop">STOP —</span>
+    <span id="strip-bearing">BRG —</span>
+    <span id="strip-distance">— km</span>
+  </div>
 </main>
+
+<div id="readout-box" class="readout-box">
+  <h2 class="section-title">&gt; CURSOR READOUT</h2>
+  <dl class="readout">
+    <dt>ELEVATION</dt><dd id="readout-elevation">—</dd>
+    <dt>SLOPE</dt><dd id="readout-slope">—</dd>
+    <dt>UNIT</dt><dd id="readout-unit">—</dd>
+  </dl>
+  <p id="readout-note" class="note"></p>
+</div>
 
 <p id="load-error" class="load-error" role="alert" hidden></p>
 <div class="scanlines" aria-hidden="true"></div>

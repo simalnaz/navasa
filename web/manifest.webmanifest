@@ -1,0 +1,9 @@
+{
+  "name": "NAVASA",
+  "short_name": "NAVASA",
+  "description": "Navigation Assistance System for Aliens: NASA data for a walk in Jezero Crater, Mars.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#050806",
+  "theme_color": "#070b08"
+}

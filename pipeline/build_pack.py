@@ -11,6 +11,10 @@ web/data/jezero_v1/:
                         cursor readout values, sampled every DEFAULT_READOUT["sample_every_px"]
                         cells (see encode_readout)
     photos/*.jpg        stop photos, longest side DEFAULT_PHOTOS["max_side_px"]
+    offline.json        files the app saves for offline use, in two stages:
+                        "core" (data, photos, readouts, the coarse zoom levels) and
+                        "route_detail" (the detailed tiles within DEFAULT_OFFLINE["corridor_m"]
+                        of every route and stop)
 
 Overlay tiles: zoom 0 shows one grid cell (1 m) per tile pixel; each lower zoom
 halves the size (every second pixel, so unit colours never mix), down to the
@@ -55,6 +59,8 @@ DEFAULT_PHOTOS = {"max_side_px": 1600, "jpeg_quality": 85}
 DEFAULT_READOUT = {"sample_every_px": 4, "elevation_step_m": 0.1, "slope_step_deg": 0.01}
 READOUT_NO_DATA_CODE = 65535
 TILE_SIZE = 256
+# Offline saving (choices): coarse zooms of the whole area, full detail only near the routes.
+DEFAULT_OFFLINE = {"corridor_m": 250, "core_max_zoom": {"hirise": -1, "slope": -2, "geology": -1}, "sample_step_m": 10}
 
 HIRISE_SOURCE = (
     "HiRISE orthomosaic, 25 cm/pixel (Mars 2020 Terrain Relative Navigation). "
@@ -88,6 +94,8 @@ METHODS = {
     "climb_descent": "Sum of all height rises / drops from cell to cell along the route (HiRISE DTM).",
     "steepest": "Steepest 1 m cell on the route, the two stops not counted.",
     "ground_slope": "Slope of the 1 m cell at the stop position.",
+    "bearing": "Direction from one stop to the next, in degrees clockwise from map north (up), from the two grid positions.",
+    "straight_distance": "Straight-line horizontal distance between two stops, from the two grid positions.",
     "readout": "Cursor readout of elevation, slope and rock unit: value of the nearest 1 m cell sampled every 4 m.",
 }
 
@@ -342,6 +350,76 @@ def build_manifest(grid, slope_legend, geology, tile_zooms, readouts, slope_tile
     }
 
 
+def corridor_points(pack_stops, legs, step_px):
+    """Grid points every step_px along every route, plus the stops."""
+    points = []
+    for stop in pack_stops:
+        points.append((float(stop["position"][0]), float(stop["position"][1])))
+    for leg in legs:
+        for kind in ("shortest", "gentlest"):
+            route = leg[kind]
+            if route is None:
+                continue
+            for start, end in zip(route["points"], route["points"][1:]):
+                length = math.hypot(end[0] - start[0], end[1] - start[1])
+                count = max(1, int(length // step_px))
+                for index in range(count + 1):
+                    fraction = index / count
+                    points.append((start[0] + (end[0] - start[0]) * fraction, start[1] + (end[1] - start[1]) * fraction))
+    return points
+
+
+def tiles_near_points(points, zoom, buffer_px, tile_size):
+    """(x, y) of every tile at this zoom that lies within buffer_px of a point (box test)."""
+    scale = 2.0**zoom
+    tiles = set()
+    for col, row in points:
+        x_min = int(math.floor((col - buffer_px) * scale / tile_size))
+        x_max = int(math.floor((col + buffer_px) * scale / tile_size))
+        y_min = int(math.floor((row - buffer_px) * scale / tile_size))
+        y_max = int(math.floor((row + buffer_px) * scale / tile_size))
+        for x in range(max(0, x_min), x_max + 1):
+            for y in range(max(0, y_min), y_max + 1):
+                tiles.add((x, y))
+    return tiles
+
+
+def write_offline_list(manifest, pack_stops, legs):
+    """Write offline.json: "core" and "route_detail" file lists (paths inside the pack)."""
+    core = ["manifest.json", "stops.json", "routes.json"]
+    for readout in manifest["readouts"]:
+        core.append(readout["file"])
+    for stop in pack_stops:
+        for photo in stop["photos"]:
+            core.append(photo["file"])
+
+    metres_per_pixel = manifest["grid"]["metres_per_pixel"]
+    points = corridor_points(pack_stops, legs, DEFAULT_OFFLINE["sample_step_m"] / metres_per_pixel)
+    buffer_px = DEFAULT_OFFLINE["corridor_m"] / metres_per_pixel
+    route_detail = []
+    for layer in manifest["layers"]:
+        tiles = layer.get("tiles")
+        if tiles is None:
+            continue
+        core_max = DEFAULT_OFFLINE["core_max_zoom"].get(layer["id"], tiles["min_zoom"])
+        for zoom in range(tiles["min_zoom"], tiles["max_zoom"] + 1):
+            if zoom <= core_max:
+                folder = os.path.join(PACK_DIR, tiles["url"].split("{z}")[0], str(zoom))
+                for x_name in sorted(os.listdir(folder)):
+                    for file_name in sorted(os.listdir(os.path.join(folder, x_name))):
+                        core.append(f"{tiles['url'].split('{z}')[0]}{zoom}/{x_name}/{file_name}")
+            else:
+                for x, y in sorted(tiles_near_points(points, zoom, buffer_px, tiles["tile_size"])):
+                    path = tiles["url"].replace("{z}", str(zoom)).replace("{x}", str(x)).replace("{y}", str(y))
+                    if os.path.isfile(os.path.join(PACK_DIR, path)):
+                        route_detail.append(path)
+
+    offline = {"version": manifest["version"], "corridor_m": DEFAULT_OFFLINE["corridor_m"], "core": core, "route_detail": route_detail}
+    with open(os.path.join(PACK_DIR, "offline.json"), "w", encoding="utf-8") as offline_file:
+        json.dump(offline, offline_file)
+    return offline
+
+
 def tile_zoom_levels():
     tiles_dir = os.path.join(PACK_DIR, "tiles", "hirise")
     zooms = []
@@ -404,6 +482,10 @@ def main():
     with open(os.path.join(PACK_DIR, "manifest.json"), "w", encoding="utf-8") as manifest_file:
         json.dump(manifest, manifest_file, ensure_ascii=False, indent=2)
 
+    with open(os.path.join(PACK_DIR, "routes.json"), "r", encoding="utf-8") as routes_file:
+        legs = json.load(routes_file)
+    offline = write_offline_list(manifest, pack_stops, legs)
+
     errors = validate_pack(PACK_DIR)
     if len(errors) > 0:
         print(f"INVALID pack {PACK_DIR}:")
@@ -422,6 +504,11 @@ def main():
         for name in files:
             total_bytes += os.path.getsize(os.path.join(folder, name))
     print(f"Pack size: {total_bytes / 1e6:.1f} MB")
+    for stage in ("core", "route_detail"):
+        stage_bytes = 0
+        for path in offline[stage]:
+            stage_bytes += os.path.getsize(os.path.join(PACK_DIR, path))
+        print(f"Offline {stage}: {len(offline[stage])} files, {stage_bytes / 1e6:.1f} MB")
     return 0
 
 

@@ -349,6 +349,8 @@
     "climb_descent": "Sum of all height rises / drops from cell to cell along the route (HiRISE DTM).",
     "steepest": "Steepest 1 m cell on the route, the two stops not counted.",
     "ground_slope": "Slope of the 1 m cell at the stop position.",
+    "bearing": "Direction from one stop to the next, in degrees clockwise from map north (up), from the two grid positions.",
+    "straight_distance": "Straight-line horizontal distance between two stops, from the two grid positions.",
     "readout": "Cursor readout of elevation, slope and rock unit: value of the nearest 1 m cell sampled every 4 m."
   }
 }

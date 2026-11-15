@@ -12,6 +12,7 @@ from pipeline.build_pack import (
     save_overlay_tiles,
     shrink_photo,
     slope_band_image,
+    tiles_near_points,
 )
 
 
@@ -38,6 +39,15 @@ class OverlayTilesTest(unittest.TestCase):
             with Image.open(os.path.join(tiles_dir, "0", "2", "1.png")) as edge_tile:
                 self.assertEqual(edge_tile.getpixel((10, 10))[3], 200)  # image part
                 self.assertEqual(edge_tile.getpixel((200, 200))[3], 0)  # padding is transparent
+
+
+class TilesNearPointsTest(unittest.TestCase):
+    def test_buffer_and_zoom(self):
+        # point at grid (400, 10), 50 px buffer, 256 px tiles: 350-450 stays in tile 1
+        self.assertEqual(tiles_near_points([(400.0, 10.0)], 0, 50, 256), {(1, 0)})
+        self.assertEqual(tiles_near_points([(260.0, 10.0)], 0, 50, 256), {(0, 0), (1, 0)})
+        # zoom 2: 4 tile pixels per grid pixel
+        self.assertEqual(tiles_near_points([(300.0, 10.0)], 2, 0, 256), {(4, 0)})
 
 
 class ReadoutTest(unittest.TestCase):
