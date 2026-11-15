@@ -1350,3 +1350,19 @@ select.message-input {
 body.wrist .editor-section {
   display: none;
 }
+
+/* Boot screen credit link */
+.credit-link {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.credit-link:hover {
+  color: var(--shortest);
+}
+
+.credit-link:focus-visible {
+  outline: 2px solid var(--shortest);
+  outline-offset: 2px;
+}
