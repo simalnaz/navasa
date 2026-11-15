@@ -9,15 +9,18 @@
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
 <link rel="stylesheet" href="styles.css">
 <script src="vendor/leaflet/leaflet.js" defer></script>
+<script src="globe.js" defer></script>
 <script src="app.js" defer></script>
 </head>
 <body>
 <header class="status-bar">
   <span class="brand">NAVASA</span>
+  <span id="status-mission">MISSION —</span>
   <span id="status-site">SITE —</span>
   <span id="status-pack">PACK —</span>
   <span id="status-as-of">AS OF —</span>
   <span id="status-offline" class="status-offline">OFFLINE —</span>
+  <button type="button" id="missions-button" class="wrist-toggle">MISSIONS</button>
   <button type="button" id="wrist-toggle" class="wrist-toggle" aria-pressed="false">WRIST VIEW</button>
 </header>
 
@@ -30,7 +33,7 @@
       <button type="button" role="tab" data-tab="route" aria-selected="false">ROUTE</button>
       <button type="button" role="tab" data-tab="stops" aria-selected="false">STOPS</button>
       <button type="button" role="tab" data-tab="data" aria-selected="false">DATA</button>
-      <button type="button" role="tab" data-tab="hud" aria-selected="false">HUD</button>
+      <button type="button" role="tab" data-tab="hud" aria-selected="false">MISSION</button>
     </nav>
 
     <div class="tab-body" id="tab-map" role="tabpanel">
@@ -67,6 +70,30 @@
   </dl>
   <p id="readout-note" class="note"></p>
 </div>
+
+<section id="boot" class="boot" aria-label="Mission select" hidden>
+  <div class="boot-screen">
+    <p class="boot-line boot-title">NAVASA // NAVIGATION ASSISTANCE SYSTEM FOR ALIENS</p>
+    <p class="boot-line">Planning a walk on Mars means combining many separate NASA datasets. NAVASA puts them in one map that works offline.</p>
+    <div class="boot-line orbit">
+      <canvas id="globe" class="globe" width="360" height="360" role="img" aria-label="Mars globe with the mission sites"></canvas>
+      <p class="note" id="globe-caption">ORBIT VIEW · Mars Viking colour mosaic (USGS Astrogeology, NASA Viking Orbiter images) · ■ NASA DATA</p>
+    </div>
+    <p class="boot-line dim" id="boot-index-line">&gt; LOADING MISSION INDEX ...</p>
+    <h1 class="boot-line boot-heading">&gt; MISSIONS</h1>
+    <div id="boot-missions" class="boot-missions"></div>
+    <div class="boot-line boot-help">
+      <p>HOW TO USE</p>
+      <p>MAP · image, slope and rock-unit layers; move or tap for elevation, slope and unit</p>
+      <p>ROUTE · shortest vs gentlest way between stops, with the real numbers</p>
+      <p>STOPS · rock unit, Perseverance photos, mission question</p>
+      <p>DATA · where every number comes from</p>
+      <p>MISSION · objective, progress, next stop, bearing and distance</p>
+    </div>
+    <p class="boot-line"><a class="wrist-link" href="wrist.html">SEE IT ON A WRIST ▶</a> · concept of NAVASA on an EVA suit sleeve</p>
+    <p class="boot-line note">Not affiliated with or endorsed by NASA. Data: NASA/JPL-Caltech, University of Arizona, USGS.</p>
+  </div>
+</section>
 
 <p id="load-error" class="load-error" role="alert" hidden></p>
 <div class="scanlines" aria-hidden="true"></div>

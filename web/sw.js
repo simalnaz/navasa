@@ -8,14 +8,19 @@
 
 "use strict";
 
-const APP_CACHE = "navasa-app-v1";
-const DATA_CACHE = "navasa-data-jezero_v1";
+const APP_CACHE = "navasa-app-v4";
+const DATA_CACHE = "navasa-data";
 const APP_FILES = [
   "./",
   "index.html",
   "styles.css",
   "app.js",
+  "globe.js",
   "manifest.webmanifest",
+  "missions.json",
+  "wrist.html",
+  "wrist.css",
+  "wrist.js",
   "vendor/leaflet/leaflet.js",
   "vendor/leaflet/leaflet.css",
 ];

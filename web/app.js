@@ -9,15 +9,23 @@
 
 "use strict";
 
-const PACK_URL = "data/jezero_v1/";
+const MISSIONS_INDEX_URL = "missions.json";
+const GLOBE_IMAGE_URL = "data/globe/mars_viking_colour.jpg";
+const DESCENT_MS = 1400; // turn the globe to the site
+const DIVE_MS = 900; // then zoom into it
 const MAP_MAX_ZOOM = 3;
 
 const LABEL_MARK = { "NASA DATA": "■", CALCULATED: "◆" };
-const DATA_CACHE = "navasa-data-jezero_v1"; // same name as in sw.js
+const DATA_CACHE = "navasa-data"; // same name as in sw.js
 const OFFLINE_BATCH_SIZE = 6; // files saved at the same time, so saving never floods the network
 const WRIST_MAX_WIDTH_PX = 600; // narrower screens use the wrist layout
 
 let theMap = null;
+let packBase = null; // "data/<pack>/", set when a mission starts
+let missionControls = null; // previous / next stop, set by the MISSION tab
+
+// "?view=wrist" shows only the wrist layout, for the wrist device page (wrist.html).
+const IS_EMBEDDED_WRIST = new URLSearchParams(window.location.search).get("view") === "wrist";
 
 // ---------------------------------------------------------------- helpers
 
@@ -32,7 +40,10 @@ function packUrl(path) {
   if (typeof path !== "string" || path === "" || path.startsWith("/") || path.includes("..") || path.includes(":")) {
     throw new Error("Refused a path outside the data pack: " + String(path));
   }
-  return PACK_URL + path;
+  if (packBase === null) {
+    throw new Error("No mission selected");
+  }
+  return packBase + path;
 }
 
 async function loadJson(path) {
@@ -526,7 +537,7 @@ function fillRouteTab(map, manifest, stops, routes) {
 
 // ---------------------------------------------------------------- STOPS tab
 
-function fillStopsTab(stops) {
+function fillStopsTab(stops, mission, progress) {
   const tab = document.getElementById("tab-stops");
   tab.appendChild(makeElement("h2", "section-title", "> STOPS"));
   for (const stop of stops) {
@@ -534,6 +545,25 @@ function fillStopsTab(stops) {
     card.id = "stop-card-" + stop.id;
     card.appendChild(makeElement("h3", "card-title", "STOP " + stop.id + " · " + stop.label.toUpperCase()));
     card.appendChild(makeElement("p", "dim", "Position: " + stop.position_source + "."));
+
+    const question = questionFor(mission, stop.id);
+    if (question !== null) {
+      card.appendChild(makeElement("p", "dim", "MISSION QUESTION · set by the mission planner"));
+      card.appendChild(makeElement("p", "", question));
+    }
+    const reachedButton = makeElement("button", "text-button");
+    reachedButton.type = "button";
+    function showReached() {
+      const isReached = progress.has(stop.id);
+      reachedButton.textContent = isReached ? "[x] STOP REACHED" : "[ ] MARK STOP AS REACHED";
+      reachedButton.setAttribute("aria-pressed", isReached ? "true" : "false");
+    }
+    reachedButton.addEventListener("click", function () {
+      progress.toggle(stop.id);
+    });
+    progress.onChange(showReached);
+    showReached();
+    card.appendChild(reachedButton);
 
     card.appendChild(makeElement("p", "dim", "GROUND SLOPE AT STOP · ◆ CALCULATED"));
     card.appendChild(makeElement("p", "", stop.ground_slope_deg === null ? "no data" : stop.ground_slope_deg.toFixed(1) + "°"));
@@ -663,12 +693,107 @@ function bearingDegrees(from, to) {
   return (Math.atan2(east, north) * 180 / Math.PI + 360) % 360;
 }
 
-function setUpHud(map, manifest, stops, routes) {
+// Mission progress: the stops this viewer has marked as reached, kept on this device only.
+function createProgress(missionId, stops) {
+  const storageKey = "navasa-progress-" + missionId;
+  const reached = new Set();
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(storageKey) || "[]");
+    for (const stopId of saved) {
+      reached.add(stopId);
+    }
+  } catch (error) {
+    // No storage (private window): progress lasts until the page is closed.
+  }
+  const listeners = [];
+  return {
+    has: function (stopId) {
+      return reached.has(stopId);
+    },
+    count: function () {
+      return stops.filter(function (stop) {
+        return reached.has(stop.id);
+      }).length;
+    },
+    toggle: function (stopId) {
+      if (reached.has(stopId)) {
+        reached.delete(stopId);
+      } else {
+        reached.add(stopId);
+      }
+      try {
+        window.localStorage.setItem(storageKey, JSON.stringify(Array.from(reached)));
+      } catch (error) {
+        // Not saved on this device; the page still works.
+      }
+      for (const listener of listeners) {
+        listener(stopId);
+      }
+    },
+    onChange: function (listener) {
+      listeners.push(listener);
+    },
+  };
+}
+
+function questionFor(mission, stopId) {
+  for (const entry of mission.questions) {
+    if (entry.stop_id === stopId) {
+      return entry.question;
+    }
+  }
+  return null;
+}
+
+function setUpMissionTab(map, manifest, mission, stops, routes, progress) {
   const tab = document.getElementById("tab-hud");
   const metresPerPixel = manifest.grid.metres_per_pixel;
   let atIndex = 0;
 
-  const title = makeElement("h2", "section-title", "> HUD · ◆ CALCULATED FROM POSITIONS");
+  // Briefing: name, objective (set by the mission planner) and its sources.
+  const briefing = makeElement("div", "card mission-brief");
+  briefing.appendChild(makeElement("p", "dim", "> MISSION · " + mission.status + " · " + mission.site.toUpperCase()));
+  briefing.appendChild(makeElement("h2", "card-title", mission.name.toUpperCase()));
+  briefing.appendChild(makeElement("p", "dim", "OBJECTIVE · set by the mission planner"));
+  briefing.appendChild(makeElement("p", "", mission.objective));
+  for (const source of mission.objective_sources) {
+    if (source.url) {
+      const link = makeElement("a", "note source-link", "Source: " + source.text);
+      link.href = source.url;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      briefing.appendChild(link);
+    } else {
+      briefing.appendChild(makeElement("p", "note", "Source: " + source.text));
+    }
+  }
+  tab.appendChild(briefing);
+
+  // Objectives: one per stop, in walking order, with the planner's question.
+  const objectivesCard = makeElement("div", "card");
+  const progressTitle = makeElement("p", "dim");
+  const progressBar = makeElement("div", "progress-bar");
+  const progressFill = makeElement("div", "progress-fill");
+  progressBar.appendChild(progressFill);
+  progressBar.setAttribute("role", "progressbar");
+  progressBar.setAttribute("aria-valuemin", "0");
+  progressBar.setAttribute("aria-valuemax", String(stops.length));
+  objectivesCard.appendChild(progressTitle);
+  objectivesCard.appendChild(progressBar);
+  const objectiveButtons = {};
+  for (const stop of stops) {
+    const button = makeElement("button", "objective-button");
+    button.type = "button";
+    button.addEventListener("click", function () {
+      progress.toggle(stop.id);
+    });
+    objectiveButtons[stop.id] = button;
+    objectivesCard.appendChild(button);
+  }
+  tab.appendChild(objectivesCard);
+
+  // Navigator: from the stop you are at to the next one.
+  const navigator = makeElement("div", "card");
   const atLine = makeElement("p", "hud-at");
   const nextLine = makeElement("p", "hud-next");
   const compass = makeElement("div", "hud-compass");
@@ -684,10 +809,12 @@ function setUpHud(map, manifest, stops, routes) {
   next.type = "button";
   buttons.appendChild(previous);
   buttons.appendChild(next);
-  for (const element of [title, atLine, nextLine, compass, bearingLine, facts, buttons]) {
-    tab.appendChild(element);
+  navigator.appendChild(makeElement("p", "dim", "NAVIGATOR · ◆ CALCULATED FROM POSITIONS"));
+  for (const element of [atLine, nextLine, compass, bearingLine, facts, buttons]) {
+    navigator.appendChild(element);
   }
-  tab.appendChild(makeElement("p", "note", "Bearing: degrees clockwise from map north. Distances: horizontal."));
+  navigator.appendChild(makeElement("p", "note", "Bearing: degrees clockwise from map north. Distances: horizontal."));
+  tab.appendChild(navigator);
 
   function routeText(route) {
     if (route === null) {
@@ -696,17 +823,33 @@ function setUpHud(map, manifest, stops, routes) {
     return (route.distance_m / 1000).toFixed(2) + " km · steepest " + route.max_slope_deg.toFixed(1) + "°";
   }
 
-  function show() {
+  function showObjectives() {
+    const done = progress.count();
+    progressTitle.textContent = "OBJECTIVES · " + done + " OF " + stops.length + " STOPS REACHED";
+    progressFill.style.width = (100 * done) / stops.length + "%";
+    progressBar.setAttribute("aria-valuenow", String(done));
+    for (const stop of stops) {
+      const isReached = progress.has(stop.id);
+      const question = questionFor(mission, stop.id);
+      objectiveButtons[stop.id].textContent =
+        (isReached ? "[x] " : "[ ] ") + stop.id + " · " + stop.label.toUpperCase() + (question === null ? "" : " — " + question);
+      objectiveButtons[stop.id].setAttribute("aria-pressed", isReached ? "true" : "false");
+    }
+    document.getElementById("status-mission").textContent =
+      "MISSION " + mission.name.toUpperCase() + " · " + done + "/" + stops.length;
+  }
+
+  function showNavigator() {
     const at = stops[atIndex];
-    atLine.textContent = "AT STOP " + at.id + " · " + at.label.toUpperCase();
+    atLine.textContent = "AT STOP " + at.id + " · " + at.label.toUpperCase() + (progress.has(at.id) ? " · REACHED" : "");
     facts.textContent = "";
     if (atIndex === stops.length - 1) {
-      nextLine.textContent = "LAST STOP";
+      nextLine.textContent = progress.count() === stops.length ? "ALL STOPS REACHED" : "LAST STOP";
       bearingLine.textContent = "—";
       compass.hidden = true;
       document.getElementById("strip-stop").textContent = "STOP " + at.id + " · LAST";
       document.getElementById("strip-bearing").textContent = "BRG —";
-      document.getElementById("strip-distance").textContent = "— km";
+      document.getElementById("strip-distance").textContent = progress.count() + "/" + stops.length + " REACHED";
     } else {
       const target = stops[atIndex + 1];
       const bearing = bearingDegrees(at.position, target.position);
@@ -735,15 +878,31 @@ function setUpHud(map, manifest, stops, routes) {
     next.disabled = atIndex === stops.length - 1;
   }
 
-  previous.addEventListener("click", function () {
+  function goPrevious() {
     atIndex = Math.max(0, atIndex - 1);
-    show();
-  });
-  next.addEventListener("click", function () {
+    showNavigator();
+  }
+  function goNext() {
     atIndex = Math.min(stops.length - 1, atIndex + 1);
-    show();
+    showNavigator();
+  }
+  previous.addEventListener("click", goPrevious);
+  next.addEventListener("click", goNext);
+  missionControls = { previous: goPrevious, next: goNext };
+  // Marking a stop as reached means you are there: the navigator moves to it.
+  progress.onChange(function (stopId) {
+    if (progress.has(stopId)) {
+      for (let index = 0; index < stops.length; index++) {
+        if (stops[index].id === stopId) {
+          atIndex = index;
+        }
+      }
+    }
+    showObjectives();
+    showNavigator();
   });
-  show();
+  showObjectives();
+  showNavigator();
 }
 
 // ---------------------------------------------------------------- wrist layout
@@ -752,6 +911,11 @@ function setUpWristLayout() {
   const toggle = document.getElementById("wrist-toggle");
   const narrowScreen = window.matchMedia("(max-width: " + (WRIST_MAX_WIDTH_PX - 1) + "px)");
   let chosen = null; // null = follow the screen width
+
+  if (IS_EMBEDDED_WRIST) {
+    chosen = true;
+    document.body.classList.add("embedded");
+  }
 
   function apply() {
     const isWrist = chosen === null ? narrowScreen.matches : chosen;
@@ -816,28 +980,192 @@ async function saveForOffline() {
 
 // ---------------------------------------------------------------- start
 
+// ---------------------------------------------------------------- boot screen and missions
+
+// Accept only pack folders of the form "data/<name>/" from the missions index.
+function safePackBase(pack) {
+  if (typeof pack !== "string" || !/^data\/[A-Za-z0-9_-]+\/$/.test(pack)) {
+    throw new Error("Refused a mission pack path: " + String(pack));
+  }
+  return pack;
+}
+
+async function loadMissionsIndex() {
+  const response = await fetch(MISSIONS_INDEX_URL);
+  if (!response.ok) {
+    throw new Error("Could not load the mission list (" + response.status + ")");
+  }
+  const missions = await response.json();
+  if (!Array.isArray(missions)) {
+    throw new Error("The mission list must be a list");
+  }
+  return missions;
+}
+
+function missionCard(entry, onStart) {
+  const card = makeElement("div", "card boot-mission");
+  card.appendChild(makeElement("p", "dim", "[" + entry.status + "] · " + entry.site.toUpperCase() + " · " + entry.stop_count + " STOPS · PACK v" + entry.pack_version));
+  card.appendChild(makeElement("h2", "card-title", entry.name.toUpperCase()));
+  const button = makeElement("button", "hud-button boot-start", "START MISSION ▶");
+  button.type = "button";
+  button.addEventListener("click", function () {
+    onStart(entry);
+  });
+  card.appendChild(button);
+  return card;
+}
+
+// Lines appear one after another; any key, click or tap shows them all at once.
+function playBootLines(boot) {
+  const lines = boot.querySelectorAll(".boot-line, .boot-missions");
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  lines.forEach(function (line, index) {
+    line.style.animationDelay = reduceMotion ? "0s" : index * 0.35 + "s";
+  });
+  function showAll() {
+    boot.classList.add("boot-skip");
+  }
+  boot.addEventListener("click", showAll, { once: true });
+  document.addEventListener("keydown", showAll, { once: true });
+}
+
+// Orbit view: the globe turns to the chosen site, then the screen dives into it.
+async function descend(boot, globe, entry) {
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (globe !== null && Array.isArray(entry.centre_lonlat)) {
+    document.getElementById("globe-caption").textContent =
+      "DESCENDING TO " + entry.site.toUpperCase() + " · " + entry.centre_lonlat[1].toFixed(2) + "° N, " + entry.centre_lonlat[0].toFixed(2) + "° E";
+    await globe.focus(entry.centre_lonlat[0], entry.centre_lonlat[1], DESCENT_MS);
+  }
+  if (!reduceMotion) {
+    boot.classList.add("diving");
+    await new Promise(function (resolve) {
+      setTimeout(resolve, DIVE_MS);
+    });
+  }
+  boot.hidden = true;
+}
+
+function startGlobe(missions) {
+  const sites = [];
+  for (const entry of missions) {
+    if (Array.isArray(entry.centre_lonlat)) {
+      sites.push({ lon: entry.centre_lonlat[0], lat: entry.centre_lonlat[1], label: entry.site.toUpperCase() });
+    }
+  }
+  return NavasaGlobe.create(document.getElementById("globe"), GLOBE_IMAGE_URL, sites).catch(function (error) {
+    document.getElementById("globe-caption").textContent = "ORBIT VIEW UNAVAILABLE: " + error.message;
+    return null;
+  });
+}
+
+function showBoot() {
+  return new Promise(function (resolve) {
+    const boot = document.getElementById("boot");
+    boot.hidden = false;
+    playBootLines(boot);
+    const list = document.getElementById("boot-missions");
+    const indexLine = document.getElementById("boot-index-line");
+    loadMissionsIndex()
+      .then(async function (missions) {
+        indexLine.textContent = "> LOADING MISSION INDEX ... OK · " + missions.length + (missions.length === 1 ? " MISSION" : " MISSIONS");
+        const globePromise = startGlobe(missions);
+        for (const entry of missions) {
+          list.appendChild(
+            missionCard(entry, async function (chosen) {
+              const globe = await globePromise;
+              await descend(boot, globe, chosen);
+              resolve(chosen);
+            })
+          );
+        }
+        if (missions.length === 0) {
+          list.appendChild(makeElement("p", "", "No missions are built yet."));
+        }
+      })
+      .catch(function (error) {
+        indexLine.textContent = "> LOADING MISSION INDEX ... FAILED: " + error.message;
+      });
+  });
+}
+
+async function chooseMission() {
+  // A mission named in the address (#mission=<id>) starts directly, e.g. after a reload.
+  const match = window.location.hash.match(/^#mission=([A-Za-z0-9_-]+)$/);
+  if (match) {
+    const missions = await loadMissionsIndex();
+    for (const entry of missions) {
+      if (entry.id === match[1]) {
+        return entry;
+      }
+    }
+  }
+  return showBoot();
+}
+
+async function launchMission(entry) {
+  packBase = safePackBase(entry.pack);
+  const manifest = await loadJson("manifest.json");
+  checkManifest(manifest);
+  const mission = await loadJson("mission.json");
+  const stops = await loadJson("stops.json");
+  const routes = await loadJson("routes.json");
+  const progress = createProgress(mission.id, stops);
+
+  fillStatusBar(manifest);
+  const created = createMap(manifest);
+  theMap = created.map;
+  addPackLayers(created.map, created.bounds, manifest);
+  addRoutes(created.map, routes);
+  addStops(created.map, stops);
+  fillRouteTab(created.map, manifest, stops, routes);
+  fillStopsTab(stops, mission, progress);
+  fillDataTab(manifest);
+  setUpMissionTab(created.map, manifest, mission, stops, routes, progress);
+  openTab("hud");
+  await setUpReadout(created.map, manifest);
+  saveForOffline(); // runs in the background after the app is ready
+}
+
+// Commands from the wrist device page. Only messages from this same site are accepted.
+const DEVICE_TABS = ["map", "route", "stops", "data", "hud"];
+
+function setUpDeviceCommands() {
+  window.addEventListener("message", function (event) {
+    if (event.origin !== window.location.origin || typeof event.data !== "object" || event.data === null) {
+      return;
+    }
+    const command = event.data;
+    if (command.type === "navasa:tab" && DEVICE_TABS.includes(command.tab)) {
+      openTab(command.tab);
+    } else if (command.type === "navasa:zoom" && theMap !== null) {
+      if (command.direction === "in") {
+        theMap.zoomIn();
+      } else if (command.direction === "out") {
+        theMap.zoomOut();
+      }
+    } else if (command.type === "navasa:stop" && missionControls !== null) {
+      if (command.direction === "next") {
+        missionControls.next();
+      } else if (command.direction === "previous") {
+        missionControls.previous();
+      }
+    }
+  });
+}
+
 async function start() {
   setUpTabs();
   setUpWristLayout();
+  setUpDeviceCommands();
+  document.getElementById("missions-button").addEventListener("click", function () {
+    window.location.hash = "";
+    window.location.reload();
+  });
   try {
-    const manifest = await loadJson("manifest.json");
-    checkManifest(manifest);
-    const stops = await loadJson("stops.json");
-    const routes = await loadJson("routes.json");
-
-    fillStatusBar(manifest);
-    const created = createMap(manifest);
-    theMap = created.map;
-    addPackLayers(created.map, created.bounds, manifest);
-    addRoutes(created.map, routes);
-    addStops(created.map, stops);
-    fillRouteTab(created.map, manifest, stops, routes);
-    fillStopsTab(stops);
-    fillDataTab(manifest);
-    setUpHud(created.map, manifest, stops, routes);
-    openTab("map");
-    await setUpReadout(created.map, manifest);
-    saveForOffline(); // runs in the background after the app is ready
+    const entry = await chooseMission();
+    window.location.hash = "mission=" + entry.id;
+    await launchMission(entry);
   } catch (error) {
     showError("NAVASA could not start: " + error.message);
   }

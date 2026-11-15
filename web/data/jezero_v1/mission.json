@@ -1,0 +1,34 @@
+{
+  "id": "jezero-biosignature",
+  "name": "Follow the water to a potential biosignature",
+  "status": "ACTIVE",
+  "objective": "Walk the ancient river-to-lake path a crew would take to re-sample the rocks where Perseverance found a potential biosignature.",
+  "objective_sources": [
+    {
+      "text": "NASA/JPL, 10 September 2025: NASA Says Mars Rover Discovered Potential Biosignature Last Year",
+      "url": "https://www.jpl.nasa.gov/news/nasa-says-mars-rover-discovered-potential-biosignature-last-year/"
+    },
+    {
+      "text": "Hurowitz, J.A., and others, 2025, Redox-driven mineral and organic associations in Jezero Crater, Mars: Nature"
+    }
+  ],
+  "site": "Jezero Crater",
+  "questions": [
+    {
+      "stop_id": 1,
+      "question": "What did the old lake floor record?"
+    },
+    {
+      "stop_id": 2,
+      "question": "Where did the river drop its sediment into the lake?"
+    },
+    {
+      "stop_id": 3,
+      "question": "The river channel that fed the lake: what did the water carry?"
+    },
+    {
+      "stop_id": 4,
+      "question": "Re-sample the rock where Perseverance found a potential biosignature."
+    }
+  ]
+}

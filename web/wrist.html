@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-src 'self'">
+<title>NAVASA · Wrist unit</title>
+<link rel="stylesheet" href="wrist.css">
+<script src="wrist.js" defer></script>
+</head>
+<body>
+<header class="page-header">
+  <span class="brand">NAVASA</span>
+  <span class="dim">CONCEPT · NAVASA ON AN EVA SUIT SLEEVE · THE SCREEN RUNS THE REAL APP</span>
+  <span class="header-links">
+    <button type="button" id="demo-button" class="header-button" aria-pressed="true">AUTO DEMO</button>
+    <button type="button" id="explode-button" class="header-button" aria-pressed="false">EXPLODED VIEW</button>
+    <button type="button" id="tilt-button" class="header-button" aria-pressed="false">TILT ON ARM</button>
+    <a class="header-button" href="index.html">OPEN FULL APP</a>
+  </span>
+</header>
+
+<main class="stage" id="stage">
+  <div class="scene" id="scene">
+    <!-- EVA suit sleeve -->
+    <div class="sleeve" aria-hidden="true">
+      <div class="sleeve-seam seam-1"></div>
+      <div class="sleeve-seam seam-2"></div>
+      <div class="sleeve-seam seam-3"></div>
+      <div class="glove"></div>
+    </div>
+    <div class="strap strap-left" aria-hidden="true"></div>
+    <div class="strap strap-right" aria-hidden="true"></div>
+
+    <!-- Wrist unit: stacked slices behind the front give it thickness in 3D -->
+    <div class="unit-slices" aria-hidden="true">
+      <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+    </div>
+    <section class="unit" aria-label="NAVASA wrist unit">
+      <div class="unit-plate">
+        <span class="engraving">NAVASA · MK-1 WRIST UNIT</span>
+        <span class="power"><span class="power-led" aria-hidden="true"></span>PWR</span>
+      </div>
+
+      <div class="unit-body">
+        <div class="vents" aria-hidden="true">
+          <span></span><span></span><span></span><span></span><span></span>
+        </div>
+
+        <div class="screen-well">
+          <div class="screen">
+            <iframe id="screen-frame" title="NAVASA app in wrist view" src="about:blank"></iframe>
+            <div class="glass" aria-hidden="true"></div>
+          </div>
+        </div>
+
+        <nav class="keys" aria-label="Tabs">
+          <button type="button" class="key" data-tab="map"><span class="key-led"></span>MAP</button>
+          <button type="button" class="key" data-tab="route"><span class="key-led"></span>ROUTE</button>
+          <button type="button" class="key" data-tab="stops"><span class="key-led"></span>STOPS</button>
+          <button type="button" class="key" data-tab="data"><span class="key-led"></span>DATA</button>
+          <button type="button" class="key" data-tab="hud"><span class="key-led"></span>MISSION</button>
+        </nav>
+      </div>
+
+      <div class="controls">
+        <div class="knob-group">
+          <button type="button" class="knob-step" id="zoom-out" aria-label="Zoom out">−</button>
+          <button type="button" class="knob" id="zoom-knob" aria-label="Zoom knob: scroll or use plus and minus">
+            <span class="knob-mark" aria-hidden="true"></span>
+          </button>
+          <button type="button" class="knob-step" id="zoom-in" aria-label="Zoom in">+</button>
+          <span class="control-label">ZOOM</span>
+        </div>
+        <div class="switch-group">
+          <button type="button" class="amber" id="stop-previous" aria-label="Previous stop">◀</button>
+          <button type="button" class="amber" id="stop-next" aria-label="Next stop">▶</button>
+          <span class="control-label">STOP</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Exploded view labels -->
+    <p class="part-label label-display" aria-hidden="true">DISPLAY · runs the NAVASA app</p>
+    <p class="part-label label-keys" aria-hidden="true">TAB KEYS</p>
+    <p class="part-label label-knob" aria-hidden="true">ZOOM KNOB</p>
+    <p class="part-label label-switches" aria-hidden="true">STOP SWITCHES</p>
+    <p class="part-label label-straps" aria-hidden="true">STRAPS · EVA SUIT SLEEVE</p>
+
+    <div class="finger" id="finger" aria-hidden="true"></div>
+  </div>
+</main>
+
+<p class="caption">Drag the background to turn the unit. Keys switch tabs, the knob zooms the map, the amber switches step through the stops. Tap the screen to use the app directly.</p>
+</body>
+</html>
