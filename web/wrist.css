@@ -375,6 +375,11 @@ body {
     repeating-conic-gradient(#3b403b 0deg 6deg, #262a26 6deg 12deg);
   box-shadow: 0 6px 12px rgba(0, 0, 0, 0.7), inset 0 0 0 10px #2c302c, inset 0 2px 0 14px rgba(255, 255, 255, 0.05);
   cursor: grab;
+  touch-action: none; /* a finger drag turns the knob instead of scrolling the page */
+}
+
+.knob.turning {
+  cursor: grabbing;
 }
 
 .knob-dial {

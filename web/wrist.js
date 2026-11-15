@@ -13,6 +13,7 @@ const SCENE_HEIGHT = 760;
 const SELECTOR_SWEEP_DEG = 240; // the knob's pointer sweeps -120° .. +120° across the layer positions
 const MAX_TURN_DEG = 40;
 const DRAG_DEG_PER_PX = 0.25;
+const KNOB_DRAG_STEP_PX = 24; // dragging the knob this far (right or up = next) turns it one layer
 
 const view = {
   scale: 1,
@@ -304,7 +305,45 @@ function start() {
     };
   }
   const knob = document.getElementById("layer-knob");
-  knob.addEventListener("click", viewerAction(function () { turnKnob("next"); }));
+  // The knob looks like a dial, so dragging turns it too: one layer per KNOB_DRAG_STEP_PX.
+  // A drag that turned it must not also count as a click (the click comes after pointerup).
+  const knobDrag = { active: false, fromX: 0, fromY: 0, turned: false };
+  knob.addEventListener("pointerdown", function (event) {
+    knobDrag.active = true;
+    knobDrag.turned = false;
+    knobDrag.fromX = event.clientX;
+    knobDrag.fromY = event.clientY;
+    knob.setPointerCapture(event.pointerId);
+    knob.classList.add("turning");
+  });
+  knob.addEventListener("pointermove", function (event) {
+    if (!knobDrag.active) {
+      return;
+    }
+    const travel = event.clientX - knobDrag.fromX - (event.clientY - knobDrag.fromY);
+    if (Math.abs(travel) >= KNOB_DRAG_STEP_PX) {
+      if (event.isTrusted) {
+        stopDemo();
+      }
+      turnKnob(travel > 0 ? "next" : "previous");
+      knobDrag.turned = true;
+      knobDrag.fromX = event.clientX;
+      knobDrag.fromY = event.clientY;
+    }
+  });
+  function endKnobDrag() {
+    knobDrag.active = false;
+    knob.classList.remove("turning");
+  }
+  knob.addEventListener("pointerup", endKnobDrag);
+  knob.addEventListener("pointercancel", endKnobDrag);
+  knob.addEventListener("click", function (event) {
+    if (knobDrag.turned) {
+      knobDrag.turned = false; // this click is the end of a drag, already turned
+      return;
+    }
+    viewerAction(function () { turnKnob("next"); })(event);
+  });
   knob.addEventListener("keydown", function (event) {
     let direction = null;
     if (event.key === "ArrowRight" || event.key === "ArrowUp") {

@@ -8,7 +8,7 @@
 
 "use strict";
 
-const APP_CACHE = "navasa-app-v9";
+const APP_CACHE = "navasa-app-v10";
 // Bump the version whenever the data pack changes: data files are served from the
 // saved copy first, so an old manifest.json would otherwise never be replaced.
 const DATA_CACHE = "navasa-data-v2";
