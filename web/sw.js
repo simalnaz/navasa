@@ -8,7 +8,7 @@
 
 "use strict";
 
-const APP_CACHE = "navasa-app-v4";
+const APP_CACHE = "navasa-app-v6";
 const DATA_CACHE = "navasa-data";
 const APP_FILES = [
   "./",
@@ -16,6 +16,10 @@ const APP_FILES = [
   "styles.css",
   "app.js",
   "globe.js",
+  "marstime.js",
+  "sun.js",
+  "comms.js",
+  "los.js",
   "manifest.webmanifest",
   "missions.json",
   "wrist.html",

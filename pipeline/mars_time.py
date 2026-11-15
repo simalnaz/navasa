@@ -179,6 +179,39 @@ def earth_mars_light_time_s(unix_ms):
     return distance_au * AU_KM / LIGHT_SPEED_KM_S, distance_au
 
 
+# ---------------------------------------------------------------- sols
+# Mars Sol Date: the same expression as inside Mars24 step C-2 (MST = 24 h x its fraction).
+# Perseverance (Mars 2020) sols: sol 0 is the sol of landing, 2021-02-18 20:55 UTC (NASA
+# landing confirmation time), counted in local mean solar time at the landing site
+# (first entry of NASA's M20_waypoints.json, 77.45088572 E). Checked in the tests against
+# the sol and spacecraft clock in NASA Perseverance raw-image IDs.
+M20_LANDING_UNIX_MS = 1613681700000.0  # 2021-02-18 20:55:00 UTC
+M20_LANDING_EAST_LONGITUDE = 77.45088572
+
+
+def mars_sol_date(unix_ms, tt_minus_utc_s=TT_MINUS_UTC_S):
+    _, jd_tt = days_since_j2000(unix_ms, tt_minus_utc_s)
+    return (jd_tt - 2451549.5) / 1.0274912517 + 44796.0 - 0.0009626
+
+
+def unix_ms_from_mars_sol_date(sol_date, tt_minus_utc_s=TT_MINUS_UTC_S):
+    """Inverse of mars_sol_date."""
+    jd_tt = (sol_date - 44796.0 + 0.0009626) * 1.0274912517 + 2451549.5
+    return (jd_tt - tt_minus_utc_s / 86400.0 - JD_UNIX_EPOCH) * MS_PER_DAY
+
+
+def local_sol_date(unix_ms, east_longitude_deg):
+    """Mars Sol Date counted in local mean solar time at a longitude (its fraction is LMST / 24)."""
+    west_longitude = (360.0 - east_longitude_deg) % 360.0
+    return mars_sol_date(unix_ms) - west_longitude / 360.0
+
+
+def m20_sol(unix_ms):
+    """Perseverance mission sol at a moment (sol 0 = landing sol)."""
+    landing_sol = math.floor(local_sol_date(M20_LANDING_UNIX_MS, M20_LANDING_EAST_LONGITUDE))
+    return math.floor(local_sol_date(unix_ms, M20_LANDING_EAST_LONGITUDE)) - landing_sol
+
+
 # ---------------------------------------------------------------- gravity
 # NASA NSSDC Mars Fact Sheet (updated 19 May 2025),
 # https://nssdc.gsfc.nasa.gov/planetary/factsheet/marsfact.html

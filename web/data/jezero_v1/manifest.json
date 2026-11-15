@@ -20,7 +20,8 @@
   "grid": {
     "width": 10637,
     "height": 5134,
-    "metres_per_pixel": 1.0
+    "metres_per_pixel": 1.0,
+    "east_scale": 0.9484838503922294
   },
   "layers": [
     {
@@ -268,7 +269,7 @@
       "product_id": "JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40",
       "as_of": "2020",
       "label": "CALCULATED",
-      "method": "Angle of the steepest rise at each 1 m cell, from the height differences to the neighbouring cells of the HiRISE DTM (central differences)."
+      "method": "Angle of the steepest rise at each cell, from the height differences to the neighbouring cells of the HiRISE DTM (central differences), in ground metres: cells are 1 m north-south and cos(latitude) m east-west (equirectangular map, true scale at the equator)."
     },
     {
       "id": "geology",
@@ -580,12 +581,168 @@
   "methods": {
     "shortest": "Least horizontal distance over cells with terrain data: 8-neighbour grid path (scikit-image), then straightened wherever a straight line crosses only such cells.",
     "gentlest": "The lowest slope S for which the two stops are still connected through cells with slope <= S (the stops' own cells not counted), then the shortest route through those cells. Its steepest point is S.",
-    "distance": "Horizontal length along the route.",
+    "distance": "Horizontal ground length along the route (east-west map metres x cos(latitude)).",
     "climb_descent": "Sum of all height rises / drops from cell to cell along the route (HiRISE DTM).",
     "steepest": "Steepest 1 m cell on the route, the two stops not counted.",
     "ground_slope": "Slope of the 1 m cell at the stop position.",
-    "bearing": "Direction from one stop to the next, in degrees clockwise from map north (up), from the two grid positions.",
-    "straight_distance": "Straight-line horizontal distance between two stops, from the two grid positions.",
+    "bearing": "Direction from one stop to the next on the ground, in degrees clockwise from north (map up), from the two grid positions with east-west map metres x cos(latitude).",
+    "straight_distance": "Straight-line horizontal ground distance between two stops, from the two grid positions (east-west map metres x cos(latitude)).",
+    "ground_scale": "The grid is equirectangular with true scale at the equator: one cell is 1 m north-south and cos(latitude) m east-west on the ground (grid.east_scale). Slope, distances, bearings, the scale bar and shadows use ground metres.",
     "readout": "Cursor readout of elevation, slope and rock unit: value of the nearest 1 m cell sampled every 4 m."
+  },
+  "horizon": {
+    "cell_px": 16,
+    "width": 665,
+    "height": 321,
+    "directions_deg": [
+      0,
+      10,
+      20,
+      30,
+      40,
+      50,
+      60,
+      70,
+      80,
+      90,
+      100,
+      110,
+      120,
+      130,
+      140,
+      150,
+      160,
+      170,
+      180,
+      190,
+      200,
+      210,
+      220,
+      230,
+      240,
+      250,
+      260,
+      270,
+      280,
+      290,
+      300,
+      310,
+      320,
+      330,
+      340,
+      350
+    ],
+    "angle_step_deg": 0.25,
+    "no_data_code": 255,
+    "max_distance_m": 10000,
+    "radius_m": 3396190.0,
+    "east_scale": 0.9484838503922294,
+    "dtm_margin_m": {
+      "west": 3675,
+      "east": 6533,
+      "north": 9185,
+      "south": 7169
+    },
+    "method": "Horizon angle per 16 m cell in 36 directions (every 10°): the highest angle to the terrain, searched every 16 m up to 10 km inside the HiRISE DTM, with Mars curvature (d² / 2R). In shadow when the sun is lower than the horizon in the sun's direction (interpolated between the two nearest directions). Terrain outside the DTM is not included.",
+    "files": [
+      {
+        "file": "layers/horizon_00.png",
+        "directions_deg": [
+          0,
+          10,
+          20
+        ]
+      },
+      {
+        "file": "layers/horizon_01.png",
+        "directions_deg": [
+          30,
+          40,
+          50
+        ]
+      },
+      {
+        "file": "layers/horizon_02.png",
+        "directions_deg": [
+          60,
+          70,
+          80
+        ]
+      },
+      {
+        "file": "layers/horizon_03.png",
+        "directions_deg": [
+          90,
+          100,
+          110
+        ]
+      },
+      {
+        "file": "layers/horizon_04.png",
+        "directions_deg": [
+          120,
+          130,
+          140
+        ]
+      },
+      {
+        "file": "layers/horizon_05.png",
+        "directions_deg": [
+          150,
+          160,
+          170
+        ]
+      },
+      {
+        "file": "layers/horizon_06.png",
+        "directions_deg": [
+          180,
+          190,
+          200
+        ]
+      },
+      {
+        "file": "layers/horizon_07.png",
+        "directions_deg": [
+          210,
+          220,
+          230
+        ]
+      },
+      {
+        "file": "layers/horizon_08.png",
+        "directions_deg": [
+          240,
+          250,
+          260
+        ]
+      },
+      {
+        "file": "layers/horizon_09.png",
+        "directions_deg": [
+          270,
+          280,
+          290
+        ]
+      },
+      {
+        "file": "layers/horizon_10.png",
+        "directions_deg": [
+          300,
+          310,
+          320
+        ]
+      },
+      {
+        "file": "layers/horizon_11.png",
+        "directions_deg": [
+          330,
+          340,
+          350
+        ]
+      }
+    ],
+    "label": "CALCULATED",
+    "source": "HiRISE DTM mosaic, ~1 m/pixel (Mars 2020 Terrain Relative Navigation). MRO, NASA/JPL-Caltech/University of Arizona; mosaic by USGS Astrogeology Science Center (Fergason and others, 2020, doi:10.5066/P9REJ9JN)"
   }
 }

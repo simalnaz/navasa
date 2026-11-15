@@ -48,11 +48,26 @@ function pressKey(tab) {
   sendToScreen({ type: "navasa:tab", tab: tab });
 }
 
+// The knob steps through the map layers; the app opens the MAP tab and answers with the layer name.
 function turnKnob(direction) {
-  knobAngle += direction === "in" ? KNOB_STEP_DEG : -KNOB_STEP_DEG;
+  knobAngle += direction === "next" ? KNOB_STEP_DEG : -KNOB_STEP_DEG;
   // Only the dial inside turns; the button itself never moves, so it keeps its clicks in 3D.
   document.getElementById("knob-dial").style.transform = "rotate(" + knobAngle + "deg)";
-  sendToScreen({ type: "navasa:zoom", direction: direction });
+  markActiveKey("map");
+  sendToScreen({ type: "navasa:layer", direction: direction });
+}
+
+function listenToScreen() {
+  window.addEventListener("message", function (event) {
+    const frame = document.getElementById("screen-frame");
+    if (event.origin !== window.location.origin || event.source !== frame.contentWindow) {
+      return;
+    }
+    const message = event.data;
+    if (typeof message === "object" && message !== null && message.type === "navasa:layer-shown" && typeof message.name === "string") {
+      document.getElementById("knob-label").textContent = message.name; // textContent: never parsed as HTML
+    }
+  });
 }
 
 function stepStop(direction) {
@@ -172,22 +187,25 @@ async function runDemo() {
   const key = function (tab) {
     return document.querySelector('.key[data-tab="' + tab + '"]');
   };
-  const knob = document.getElementById("zoom-knob");
+  const knob = document.getElementById("layer-knob");
   const next = document.getElementById("stop-next");
   const previous = document.getElementById("stop-previous");
   await wait(2500); // let the app start in the screen
   while (demoRunning) {
     await fingerPress(key("map"), function () { pressKey("map"); });
     await wait(1800);
-    await fingerPress(knob, function () { turnKnob("in"); });
-    await fingerPress(knob, function () { turnKnob("in"); });
+    await fingerPress(knob, function () { turnKnob("next"); }); // slope
     await wait(1800);
-    await fingerPress(knob, function () { turnKnob("out"); });
-    await fingerPress(knob, function () { turnKnob("out"); });
+    await fingerPress(knob, function () { turnKnob("next"); }); // rock units
+    await wait(1800);
+    await fingerPress(knob, function () { turnKnob("previous"); });
+    await fingerPress(knob, function () { turnKnob("previous"); }); // back to image only
     await wait(1200);
     await fingerPress(key("route"), function () { pressKey("route"); });
     await wait(2500);
     await fingerPress(key("stops"), function () { pressKey("stops"); });
+    await wait(2500);
+    await fingerPress(key("sun"), function () { pressKey("sun"); });
     await wait(2500);
     await fingerPress(key("hud"), function () { pressKey("hud"); });
     await wait(1500);
@@ -259,16 +277,16 @@ function start() {
       handler();
     };
   }
-  document.getElementById("zoom-in").addEventListener("click", viewerAction(function () { turnKnob("in"); }));
-  document.getElementById("zoom-out").addEventListener("click", viewerAction(function () { turnKnob("out"); }));
-  const knob = document.getElementById("zoom-knob");
-  knob.addEventListener("click", viewerAction(function () { turnKnob("in"); }));
+  document.getElementById("layer-next").addEventListener("click", viewerAction(function () { turnKnob("next"); }));
+  document.getElementById("layer-previous").addEventListener("click", viewerAction(function () { turnKnob("previous"); }));
+  const knob = document.getElementById("layer-knob");
+  knob.addEventListener("click", viewerAction(function () { turnKnob("next"); }));
   knob.addEventListener(
     "wheel",
     function (event) {
       event.preventDefault();
       stopDemo();
-      turnKnob(event.deltaY < 0 ? "in" : "out");
+      turnKnob(event.deltaY < 0 ? "next" : "previous");
     },
     { passive: false }
   );
@@ -302,6 +320,7 @@ function start() {
   window.addEventListener("resize", fitScene);
   fitScene();
   setUpDragging();
+  listenToScreen();
   window.requestAnimationFrame(animateView);
   loadScreen();
 

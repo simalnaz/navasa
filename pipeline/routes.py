@@ -3,8 +3,10 @@
 Grid: the 1 m walk-area grid from crop_layers.py. Only cells that have a slope
 (and so a height) can be walked on.
 
-1. Grid path: scikit-image MCP_Geometric finds the least-distance path, moving
-   to any of the 8 neighbouring cells (straight step 1 cell, diagonal sqrt(2)).
+1. Grid path: scikit-image MCP_Geometric finds the least-distance path in
+   ground metres, moving to any of the 8 neighbouring cells. Cells are
+   cell_north_m x cell_east_m on the ground (terrain.ground_cell_size_m: the map
+   is equirectangular, so east-west cells are cos(latitude) shorter).
 2. Line-of-sight smoothing: grid paths can only turn at 0 or 45 degrees, which
    makes them longer than the real shortest way. From each corner, the path
    goes straight to the farthest later point of the grid path that can be
@@ -23,7 +25,7 @@ Gentlest route:  S = the lowest slope for which the two stops are still connecte
 Measured along each route (CALCULATED from the DTM), over the cells under its
 straight segments:
     points          corners of the route, [col, row]
-    distance_m      horizontal length (sum of straight segment lengths)
+    distance_m      horizontal ground length (sum of straight segment lengths)
     climb_m         sum of all height rises from cell to cell
     descent_m       sum of all height drops from cell to cell
     max_slope_deg   steepest cell on the route, not counting the two stop cells
@@ -47,7 +49,7 @@ from skimage.measure import label
 
 from pipeline.mission import MissionPaths, load_mission, mission_path_from_arguments
 from pipeline.stops import lonlat_to_pixel
-from pipeline.terrain import read_heights
+from pipeline.terrain import ground_cell_size_m, read_heights
 
 IMPASSABLE_COST = -1.0  # MCP treats negative costs as impassable
 DEFAULT_ROUTES = {"sample_step_cells": 0.25}
@@ -61,15 +63,23 @@ def with_stops_allowed(allowed, start, end):
     return allowed
 
 
-def grid_path(allowed, start, end):
-    """Least-distance 8-neighbour path over allowed cells. start/end are (row, col).
+def cell_sizes(cell_size_m):
+    """(north_m, east_m) from one number (square cells) or a pair."""
+    if isinstance(cell_size_m, (tuple, list)):
+        return float(cell_size_m[0]), float(cell_size_m[1])
+    return float(cell_size_m), float(cell_size_m)
 
+
+def grid_path(allowed, start, end, cell_size_m=1.0):
+    """Least ground-distance 8-neighbour path over allowed cells. start/end are (row, col).
+
+    cell_size_m: one number for square cells, or (north_m, east_m).
     Returns the list of (row, col) cells, or None if end cannot be reached.
     """
     if not allowed[start] or not allowed[end]:
         return None
     costs = numpy.where(allowed, 1.0, IMPASSABLE_COST)
-    graph = MCP_Geometric(costs, fully_connected=True)
+    graph = MCP_Geometric(costs, fully_connected=True, sampling=cell_sizes(cell_size_m))
     cumulative_costs, _ = graph.find_costs([start], [end])
     if not numpy.isfinite(cumulative_costs[end]):
         return None
@@ -147,14 +157,18 @@ def lowest_connecting_slope(slope, start, end):
 
 
 def measure_route(corners, heights, slope, cell_size_m):
-    """Distance, climb, descent and steepest point along the straight segments between corners."""
-    distance_cells = 0.0
+    """Distance, climb, descent and steepest point along the straight segments between corners.
+
+    cell_size_m: one number for square cells, or (north_m, east_m).
+    """
+    cell_north_m, cell_east_m = cell_sizes(cell_size_m)
+    distance_m = 0.0
     route_rows = [corners[0][0]]
     route_cols = [corners[0][1]]
     for index in range(1, len(corners)):
         previous = corners[index - 1]
         corner = corners[index]
-        distance_cells += math.hypot(corner[0] - previous[0], corner[1] - previous[1])
+        distance_m += math.hypot((corner[0] - previous[0]) * cell_north_m, (corner[1] - previous[1]) * cell_east_m)
         rows, cols = segment_cells(previous, corner)
         route_rows.extend(rows[1:].tolist())
         route_cols.extend(cols[1:].tolist())
@@ -179,7 +193,7 @@ def measure_route(corners, heights, slope, cell_size_m):
         points.append([int(col), int(row)])
     return {
         "points": points,
-        "distance_m": round(distance_cells * cell_size_m, 1),
+        "distance_m": round(distance_m, 1),
         "climb_m": round(climb_m, 1),
         "descent_m": round(descent_m, 1),
         "max_slope_deg": round(float(inner_slopes[steepest_index]), 2),
@@ -189,7 +203,7 @@ def measure_route(corners, heights, slope, cell_size_m):
 
 def best_route(allowed, heights, slope, cell_size_m, start, end):
     """Grid path, smoothed, and measured; None if the stops cannot be connected."""
-    path = grid_path(allowed, start, end)
+    path = grid_path(allowed, start, end, cell_size_m)
     if path is None:
         return None
     corners = smooth_path(path, allowed)
@@ -225,7 +239,7 @@ def main(mission_path):
     paths = MissionPaths(mission)
     stops = mission["stops"]
     with rasterio.open(paths.cropped_dtm) as dtm:
-        cell_size_m = dtm.res[0]
+        cell_size_m = ground_cell_size_m(dtm)  # (north_m, east_m)
         heights = read_heights(dtm)
         stop_cells = []
         for stop in stops:
@@ -243,7 +257,7 @@ def main(mission_path):
         to_stop = stops[index + 1]
         start = stop_cells[index]
         end = stop_cells[index + 1]
-        straight_m = math.hypot(end[0] - start[0], end[1] - start[1]) * cell_size_m
+        straight_m = math.hypot((end[0] - start[0]) * cell_size_m[0], (end[1] - start[1]) * cell_size_m[1])
         print(f"Leg {from_stop['id']} -> {to_stop['id']} (straight line {straight_m:.1f} m) ...")
         shortest, gentlest = plan_leg(heights, slope, cell_size_m, start, end)
         print(f"  shortest: {describe(shortest)}")

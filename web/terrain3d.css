@@ -1,0 +1,111 @@
+/* 3D terrain view: an overlay inside the map, same terminal look as the app. */
+
+.terrain-3d {
+  position: absolute;
+  inset: 0;
+  z-index: 900; /* above Leaflet's panes (up to 700), below its controls (1000) so the 2D/3D button stays on top */
+  background: var(--background-deep);
+  font-family: var(--font);
+  color: var(--text);
+  touch-action: none; /* the 3D view handles drags and pinches itself */
+}
+
+.terrain-3d[hidden] {
+  display: none;
+}
+
+.terrain-3d-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+}
+
+.terrain-3d-canvas:active {
+  cursor: grabbing;
+}
+
+.terrain-3d-bar {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 64px; /* room for the 2D/3D button */
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  pointer-events: none;
+}
+
+.terrain-3d-layer,
+.terrain-3d-height {
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  background: rgba(5, 8, 6, 0.85);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+
+.terrain-3d-height {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.terrain-3d-height:focus-visible {
+  outline: 2px solid var(--shortest);
+}
+
+.terrain-3d-note,
+.terrain-3d-status {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-dim);
+  pointer-events: none;
+}
+
+.terrain-3d-note {
+  bottom: 8px;
+}
+
+.terrain-3d-status {
+  top: 50%;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.terrain-3d-status[hidden] {
+  display: none;
+}
+
+/* The 2D/3D button on the map (a Leaflet control). */
+.view-toggle {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--text);
+  background: rgba(5, 8, 6, 0.9);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+}
+
+.view-toggle[aria-pressed="true"] {
+  background: var(--text);
+  color: var(--background-deep);
+}
+
+.view-toggle:focus-visible {
+  outline: 2px solid var(--shortest);
+}
+
+body.wrist .terrain-3d-note {
+  display: none; /* too small for the hint on a wrist screen */
+}

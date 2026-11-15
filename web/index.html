@@ -10,6 +10,10 @@
 <link rel="stylesheet" href="styles.css">
 <script src="vendor/leaflet/leaflet.js" defer></script>
 <script src="globe.js" defer></script>
+<script src="marstime.js" defer></script>
+<script src="sun.js" defer></script>
+<script src="comms.js" defer></script>
+<script src="los.js" defer></script>
 <script src="app.js" defer></script>
 </head>
 <body>
@@ -32,6 +36,7 @@
       <button type="button" role="tab" data-tab="map" aria-selected="true">MAP</button>
       <button type="button" role="tab" data-tab="route" aria-selected="false">ROUTE</button>
       <button type="button" role="tab" data-tab="stops" aria-selected="false">STOPS</button>
+      <button type="button" role="tab" data-tab="sun" aria-selected="false">SKY</button>
       <button type="button" role="tab" data-tab="data" aria-selected="false">DATA</button>
       <button type="button" role="tab" data-tab="hud" aria-selected="false">MISSION</button>
     </nav>
@@ -44,6 +49,8 @@
     <div class="tab-body" id="tab-route" role="tabpanel" hidden></div>
 
     <div class="tab-body" id="tab-stops" role="tabpanel" hidden></div>
+
+    <div class="tab-body" id="tab-sun" role="tabpanel" hidden></div>
 
     <div class="tab-body" id="tab-data" role="tabpanel" hidden></div>
 
@@ -89,6 +96,7 @@
       <p>MAP · image, slope and rock-unit layers; move or tap for elevation, slope and unit</p>
       <p>ROUTE · shortest vs gentlest way between stops, with the real numbers</p>
       <p>STOPS · rock unit, Perseverance photos, mission question</p>
+      <p>SKY · Mars clock, sunrise and sunset, terrain shadows over a sol, routes in shadow, Earth light delay and a SEND simulation</p>
       <p>DATA · where every number comes from</p>
       <p>MISSION · objective, progress, next stop, bearing and distance</p>
     </div>

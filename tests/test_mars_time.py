@@ -1,7 +1,14 @@
 import math
 import unittest
 
-from pipeline.mars_time import earth_heliocentric_xyz, earth_mars_light_time_s, mars_sun
+from pipeline.mars_time import (
+    earth_heliocentric_xyz,
+    earth_mars_light_time_s,
+    m20_sol,
+    mars_sol_date,
+    mars_sun,
+    unix_ms_from_mars_sol_date,
+)
 
 
 def unix_ms_from_jd_ut(jd_ut):
@@ -83,3 +90,34 @@ class MarsGravityTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+J2000_UNIX_MS = 946728000000.0  # 2000-01-01 12:00:00 UTC
+
+# (sol, spacecraft clock) read from NASA Perseverance raw-image IDs on mars.nasa.gov,
+# e.g. FLF_0999_0755633592_... = sol 999, clock 755633592 s. The clock counts seconds from
+# J2000 (taken here as TT, so UTC = J2000 + clock - 69.184 s; clock drift is seconds at most).
+RAW_IMAGE_SOLS = (
+    (1, 667022674),
+    (999, 755633592),
+    (1002, 755902653),
+    (1003, 755993613),
+    (1007, 756328035),
+    (1009, 756528077),
+    (1303, 782643014),
+    (1400, 791224654),
+)
+
+
+class PerseveranceSolTest(unittest.TestCase):
+    def test_landing_is_sol_0(self):
+        self.assertEqual(m20_sol(1613681700000.0), 0)
+
+    def test_sols_match_nasa_raw_image_ids(self):
+        for sol, clock_s in RAW_IMAGE_SOLS:
+            unix_ms = J2000_UNIX_MS + (clock_s - 69.184) * 1000.0
+            self.assertEqual(m20_sol(unix_ms), sol)
+
+    def test_sol_date_round_trip(self):
+        unix_ms = 1763164800000.0
+        self.assertAlmostEqual(unix_ms_from_mars_sol_date(mars_sol_date(unix_ms)), unix_ms, delta=1.0)

@@ -8,6 +8,7 @@ run_mission.py). Writes into web/data/<pack>/:
     routes.json         shortest and gentlest route per leg (copied from data/work)
     tiles/slope/        slope in DEFAULT_SLOPE_BANDS["band_deg"] bands (display choice only), PNG tiles
     tiles/geology/      geology overlay from geology.py, PNG tiles
+    layers/horizon_NN.png  terrain horizon angles from horizon.py, three directions per RGB image
     layers/elevation_readout.png, layers/slope_readout.png, layers/unit_readout.png
                         cursor readout values, sampled every DEFAULT_READOUT["sample_every_px"]
                         cells (see encode_readout)
@@ -63,8 +64,9 @@ TILE_SIZE = 256
 DEFAULT_OFFLINE = {"corridor_m": 250, "core_max_zoom": {"hirise": -1, "slope": -2, "geology": -1}, "sample_step_m": 10}
 
 SLOPE_METHOD = (
-    "Angle of the steepest rise at each 1 m cell, from the height differences "
-    "to the neighbouring cells of the HiRISE DTM (central differences)."
+    "Angle of the steepest rise at each cell, from the height differences "
+    "to the neighbouring cells of the HiRISE DTM (central differences), in ground metres: "
+    "cells are 1 m north-south and cos(latitude) m east-west (equirectangular map, true scale at the equator)."
 )
 METHODS = {
     "shortest": (
@@ -76,12 +78,13 @@ METHODS = {
         "with slope <= S (the stops' own cells not counted), then the shortest route "
         "through those cells. Its steepest point is S."
     ),
-    "distance": "Horizontal length along the route.",
+    "distance": "Horizontal ground length along the route (east-west map metres x cos(latitude)).",
     "climb_descent": "Sum of all height rises / drops from cell to cell along the route (HiRISE DTM).",
     "steepest": "Steepest 1 m cell on the route, the two stops not counted.",
     "ground_slope": "Slope of the 1 m cell at the stop position.",
-    "bearing": "Direction from one stop to the next, in degrees clockwise from map north (up), from the two grid positions.",
-    "straight_distance": "Straight-line horizontal distance between two stops, from the two grid positions.",
+    "bearing": "Direction from one stop to the next on the ground, in degrees clockwise from north (map up), from the two grid positions with east-west map metres x cos(latitude).",
+    "straight_distance": "Straight-line horizontal ground distance between two stops, from the two grid positions (east-west map metres x cos(latitude)).",
+    "ground_scale": "The grid is equirectangular with true scale at the equator: one cell is 1 m north-south and cos(latitude) m east-west on the ground (grid.east_scale). Slope, distances, bearings, the scale bar and shadows use ground metres.",
     "readout": "Cursor readout of elevation, slope and rock unit: value of the nearest 1 m cell sampled every 4 m.",
 }
 
@@ -294,6 +297,8 @@ def build_manifest(mission, grid, slope_legend, geology, tile_zooms, readouts, s
             "width": grid["width"],
             "height": grid["height"],
             "metres_per_pixel": grid["metres_per_pixel"],
+            # ground metres per grid metre east-west (equirectangular, true scale at the equator)
+            "east_scale": math.cos(math.radians((grid["bounds_lonlat"][1] + grid["bounds_lonlat"][3]) / 2.0)),
         },
         "layers": [
             {
@@ -380,6 +385,9 @@ def write_offline_list(pack_dir, manifest, pack_stops, legs):
     core = ["manifest.json", "mission.json", "stops.json", "routes.json"]
     for readout in manifest["readouts"]:
         core.append(readout["file"])
+    if "horizon" in manifest:
+        for horizon_file in manifest["horizon"]["files"]:
+            core.append(horizon_file["file"])
     for stop in pack_stops:
         for photo in stop["photos"]:
             core.append(photo["file"])
@@ -543,6 +551,34 @@ def thermal_layers(pack_dir, thermal, work_dir):
     return layers, readouts
 
 
+HORIZON_DIRECTIONS_PER_IMAGE = 3  # red, green, blue
+
+
+def horizon_entry(pack_dir, work_dir, dtm_source):
+    """layers/horizon_NN.png (three directions per RGB image) and their manifest entry; None if horizon.py has not run."""
+    codes_path = os.path.join(work_dir, "horizon.npy")
+    info_path = os.path.join(work_dir, "horizon.json")
+    if not os.path.isfile(codes_path) or not os.path.isfile(info_path):
+        return None
+    codes = numpy.load(codes_path)
+    with open(info_path, "r", encoding="utf-8") as info_file:
+        info = json.load(info_file)
+    files = []
+    directions = info["directions_deg"]
+    for first in range(0, len(directions), HORIZON_DIRECTIONS_PER_IMAGE):
+        image = numpy.zeros(codes.shape[1:] + (3,), dtype=numpy.uint8)
+        group = directions[first : first + HORIZON_DIRECTIONS_PER_IMAGE]
+        for channel in range(len(group)):
+            image[..., channel] = codes[first + channel]
+        file_name = f"layers/horizon_{first // HORIZON_DIRECTIONS_PER_IMAGE:02d}.png"
+        Image.fromarray(image, "RGB").save(os.path.join(pack_dir, file_name), optimize=True)
+        files.append({"file": file_name, "directions_deg": group})
+    entry = {key: info[key] for key in ("cell_px", "width", "height", "directions_deg", "angle_step_deg", "no_data_code",
+                                         "max_distance_m", "radius_m", "east_scale", "dtm_margin_m", "method")}
+    entry.update({"files": files, "label": "CALCULATED", "source": dtm_source})
+    return entry
+
+
 def context_layers(work_dir):
     """Planet / region / crater layers from context_maps.py (empty list if it has not run)."""
     context_path = os.path.join(work_dir, "context.json")
@@ -644,6 +680,9 @@ def main(mission_path):
         thermal_map_layers, thermal_readouts = thermal_layers(pack_dir, mission["site"]["thermal"], paths.work_dir)
         manifest["layers"] = manifest["layers"] + thermal_map_layers
         manifest["readouts"] = manifest["readouts"] + thermal_readouts
+    horizon = horizon_entry(pack_dir, paths.work_dir, mission["site"]["dtm_source"])
+    if horizon is not None:
+        manifest["horizon"] = horizon
     with open(os.path.join(pack_dir, "manifest.json"), "w", encoding="utf-8") as manifest_file:
         json.dump(manifest, manifest_file, ensure_ascii=False, indent=2)
 

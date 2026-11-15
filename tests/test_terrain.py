@@ -39,6 +39,12 @@ class SlopeDegreesTest(unittest.TestCase):
         self.assertTrue(numpy.isnan(slope[2, 1]))  # neighbour uses the missing height
         self.assertFalse(numpy.isnan(slope[0, 0]))
 
+    def test_east_west_cells_shorter_on_the_ground(self):
+        # Rises 1 m per map cell towards east; east cells are 0.5 m on the ground: 2 m per ground metre.
+        heights = numpy.tile(numpy.arange(6, dtype=numpy.float64), (6, 1))
+        slope = slope_degrees(heights, 1.0, 0.5)
+        self.assertTrue(numpy.allclose(slope, math.degrees(math.atan(2.0)), atol=1e-4))
+
 
 if __name__ == "__main__":
     unittest.main()

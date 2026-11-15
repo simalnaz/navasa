@@ -66,6 +66,7 @@
           <button type="button" class="key" data-tab="map"><span class="key-led"></span>MAP</button>
           <button type="button" class="key" data-tab="route"><span class="key-led"></span>ROUTE</button>
           <button type="button" class="key" data-tab="stops"><span class="key-led"></span>STOPS</button>
+          <button type="button" class="key" data-tab="sun"><span class="key-led"></span>SKY</button>
           <button type="button" class="key" data-tab="data"><span class="key-led"></span>DATA</button>
           <button type="button" class="key" data-tab="hud"><span class="key-led"></span>MISSION</button>
         </nav>
@@ -73,12 +74,12 @@
 
       <div class="controls">
         <div class="knob-group">
-          <button type="button" class="knob-step" id="zoom-out" aria-label="Zoom out">−</button>
-          <button type="button" class="knob" id="zoom-knob" aria-label="Zoom knob: scroll or use plus and minus">
+          <button type="button" class="knob-step" id="layer-previous" aria-label="Previous map layer">−</button>
+          <button type="button" class="knob" id="layer-knob" aria-label="Layer knob: scroll or use plus and minus">
             <span class="knob-dial" id="knob-dial" aria-hidden="true"><span class="knob-mark"></span></span>
           </button>
-          <button type="button" class="knob-step" id="zoom-in" aria-label="Zoom in">+</button>
-          <span class="control-label">ZOOM</span>
+          <button type="button" class="knob-step" id="layer-next" aria-label="Next map layer">+</button>
+          <span class="control-label" id="knob-label" aria-live="polite">LAYER</span>
         </div>
         <div class="switch-group">
           <button type="button" class="amber" id="stop-previous" aria-label="Previous stop">◀</button>
@@ -91,7 +92,7 @@
     <!-- Exploded view labels -->
     <p class="part-label label-display" aria-hidden="true">DISPLAY · runs the NAVASA app</p>
     <p class="part-label label-keys" aria-hidden="true">TAB KEYS</p>
-    <p class="part-label label-knob" aria-hidden="true">ZOOM KNOB</p>
+    <p class="part-label label-knob" aria-hidden="true">LAYER KNOB</p>
     <p class="part-label label-switches" aria-hidden="true">STOP SWITCHES</p>
     <p class="part-label label-straps" aria-hidden="true">STRAPS · EVA SUIT SLEEVE</p>
 
@@ -99,6 +100,6 @@
   </div>
 </main>
 
-<p class="caption">Drag the background to turn the unit. Keys switch tabs, the knob zooms the map, the amber switches step through the stops. Tap the screen to use the app directly.</p>
+<p class="caption">Drag the background to turn the unit. Keys switch tabs, the knob steps through the map layers (image, slope, rock, heat), the amber switches step through the stops. Tap the screen to use the app directly.</p>
 </body>
 </html>

@@ -116,7 +116,7 @@ button {
 
 .tabs {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   border-bottom: 1px solid var(--line);
 }
 
@@ -126,9 +126,10 @@ button {
   color: var(--text);
   border: 0;
   border-right: 1px solid var(--line);
-  font-size: 13px;
+  padding: 0 2px;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.04em;
   cursor: pointer;
 }
 
@@ -599,12 +600,13 @@ body.wrist .tabs {
 
 body.wrist .tabs button {
   min-height: 44px;
-  padding: 0 6px;
+  padding: 0 3px;
   border: 2px solid transparent;
   border-bottom: 0;
   background: transparent;
   color: var(--text-dim);
-  font-size: 14px;
+  font-size: 12px;
+  letter-spacing: 0;
 }
 
 body.wrist .tabs button[aria-selected="true"] {
@@ -1024,4 +1026,201 @@ body.wrist .readout {
 
 .legend[hidden] {
   display: none;
+}
+
+/* SUN tab: clock, time slider, sun arrow on the map */
+
+.readout.clock dd {
+  overflow-wrap: anywhere;
+}
+
+.slider-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.time-slider {
+  width: 100%;
+  min-height: 44px;
+  accent-color: var(--text);
+}
+
+.time-slider:focus-visible {
+  outline: 2px solid var(--shortest);
+  outline-offset: 2px;
+}
+
+.sun-arrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 4px 4px;
+  background: var(--background);
+  border: 1px solid var(--line);
+  color: var(--shortest);
+  font-family: var(--font);
+  font-size: 12px;
+}
+
+.sun-arrow-ring {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 1.5;
+}
+
+.sun-arrow-pointer {
+  fill: var(--shortest);
+}
+
+.sun-arrow-north {
+  fill: var(--text-dim);
+  font-size: 8px;
+  font-family: var(--font);
+}
+
+.sun-arrow.sun-down {
+  color: var(--text-dim);
+}
+
+.sun-arrow.sun-down .sun-arrow-pointer {
+  fill: var(--text-dim);
+}
+
+body.wrist .sun-arrow-text {
+  display: none;
+}
+
+/* Earth link: orbit diagram and SEND simulation */
+
+.orbit-diagram {
+  width: 100%;
+  max-width: 280px;
+  align-self: center;
+  background: var(--background-deep);
+  border: 1px solid var(--line);
+}
+
+.orbit {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.link-line {
+  stroke: var(--text-dim);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.body-sun {
+  fill: var(--shortest);
+}
+
+.body-earth {
+  fill: #7fb8ff;
+}
+
+.body-mars {
+  fill: #ff8a5c;
+}
+
+.body-label {
+  fill: var(--text-dim);
+  font-family: var(--font);
+  font-size: 10px;
+}
+
+.pulse {
+  fill: var(--text);
+}
+
+.pulse.reply {
+  fill: var(--shortest);
+}
+
+.message-input {
+  min-height: 44px;
+  padding: 0 10px;
+  background: var(--background-deep);
+  color: var(--text);
+  border: 1px solid var(--line);
+  font-family: var(--font);
+  font-size: 13px;
+}
+
+.message-input:focus-visible {
+  outline: 2px solid var(--shortest);
+  outline-offset: -2px;
+}
+
+.message-progress {
+  height: 6px;
+  border: 1px solid var(--line);
+}
+
+.message-progress-bar {
+  width: 0;
+  height: 100%;
+  background: var(--text);
+}
+
+/* Radio line of sight */
+
+.antenna-inputs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.antenna-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.message-input.invalid {
+  border-color: var(--error);
+}
+
+.los-marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 2px solid #7fb8ff;
+  border-radius: 50%;
+  background: var(--background);
+  color: #7fb8ff;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.los-marker.habitat {
+  border-radius: 4px;
+  border-color: var(--shortest);
+  color: var(--shortest);
+}
+
+.los-line.clear {
+  stroke: #7fb8ff;
+}
+
+.los-line.blocked {
+  stroke: var(--error);
+}
+
+.los-block {
+  stroke: var(--error);
+  fill: var(--error);
+  fill-opacity: 0.4;
+}
+
+.map.placing {
+  cursor: crosshair;
 }

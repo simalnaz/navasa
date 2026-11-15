@@ -299,7 +299,7 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
   width: 104px;
 }
 
@@ -307,7 +307,7 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 48px;
+  min-height: 44px;
   padding: 0 10px;
   border: 0;
   border-radius: 10px;

@@ -64,6 +64,13 @@ class SmoothPathTest(unittest.TestCase):
         self.assertAlmostEqual(route["distance_m"], round(3 * math.sqrt(2) * 2.0, 1))
 
 
+    def test_east_west_cell_size(self):
+        allowed = numpy.ones((1, 11), dtype=bool)
+        corners = smooth_path(grid_path(allowed, (0, 0), (0, 10), (1.0, 0.5)), allowed)
+        route = measure_route(corners, numpy.zeros((1, 11)), numpy.zeros((1, 11)), (1.0, 0.5))
+        self.assertAlmostEqual(route["distance_m"], 5.0)
+
+
 class SegmentCellsTest(unittest.TestCase):
     def test_diagonal_step_touches_only_its_two_cells(self):
         rows, cols = segment_cells((0, 0), (1, 1))

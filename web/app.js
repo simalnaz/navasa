@@ -156,8 +156,16 @@ function createMap(manifest) {
     }
   }
 
+  // Flat map in grid metres, but distances (scale bar) in ground metres: east-west grid metres
+  // are east_scale ground metres on this equirectangular grid.
+  const eastScale = eastScaleOf(manifest);
+  const groundCrs = L.extend({}, L.CRS.Simple, {
+    distance: function (a, b) {
+      return Math.hypot((b.lng - a.lng) * eastScale, b.lat - a.lat) * manifest.grid.metres_per_pixel;
+    },
+  });
   const map = L.map("map", {
-    crs: L.CRS.Simple,
+    crs: groundCrs,
     minZoom: minZoom,
     maxZoom: MAP_MAX_ZOOM,
     maxBounds: planetBounds,
@@ -172,10 +180,8 @@ function createMap(manifest) {
     map.getContainer().classList.toggle("far-out", map.getZoom() < FAR_OUT_ZOOM);
   });
 
-  // The scale bar measures in grid pixels, so it is only right for a 1 m grid.
-  if (manifest.grid.metres_per_pixel === 1) {
-    L.control.scale({ imperial: false, position: "bottomleft" }).addTo(map);
-  }
+  // The scale bar is horizontal, so it measures ground metres east-west (see groundCrs).
+  L.control.scale({ imperial: false, position: "bottomleft" }).addTo(map);
   return { map: map, bounds: bounds };
 }
 
@@ -279,6 +285,7 @@ function addLayerButton(map, name, tag, mapLayer, legend, startOn) {
     show(!map.hasLayer(mapLayer));
   });
   show(startOn);
+  return show;
 }
 
 // The 25 cm image tiles pad their edges with black (JPEG has no transparency); this pane
@@ -642,6 +649,557 @@ function fillRouteTab(map, manifest, stops, routes) {
   }
 }
 
+// ---------------------------------------------------------------- SUN tab
+
+const MARS_MINUTES_PER_SOL = 24 * 60;
+const PLAY_STEP_MARS_MINUTES = 10;
+const PLAY_INTERVAL_MS = 150;
+const SHADE_RGBA = [8, 10, 40, 165]; // display choice only
+const REPAINT_MIN_SUN_CHANGE_DEG = 0.05;
+
+function formatUtc(unixMs) {
+  return new Date(unixMs).toISOString().slice(0, 16).replace("T", " ") + " UTC";
+}
+
+function formatEarthDuration(ms) {
+  const minutes = Math.round(ms / 60000);
+  return Math.floor(minutes / 60) + " h " + String(minutes % 60).padStart(2, "0") + " min";
+}
+
+function makeSunArrow(map) {
+  const box = makeElement("div", "sun-arrow");
+  box.setAttribute("aria-live", "off");
+  const svgNs = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(svgNs, "svg");
+  svg.setAttribute("viewBox", "-20 -20 40 40");
+  svg.setAttribute("width", "44");
+  svg.setAttribute("height", "44");
+  svg.setAttribute("aria-hidden", "true");
+  const ring = document.createElementNS(svgNs, "circle");
+  ring.setAttribute("r", "17");
+  ring.setAttribute("class", "sun-arrow-ring");
+  const pointer = document.createElementNS(svgNs, "path");
+  pointer.setAttribute("d", "M0,-16 L6,-4 L1.5,-4 L1.5,12 L-1.5,12 L-1.5,-4 L-6,-4 Z");
+  pointer.setAttribute("class", "sun-arrow-pointer");
+  const north = document.createElementNS(svgNs, "text");
+  north.setAttribute("y", "-6");
+  north.setAttribute("x", "11");
+  north.setAttribute("class", "sun-arrow-north");
+  north.textContent = "N";
+  svg.appendChild(ring);
+  svg.appendChild(pointer);
+  svg.appendChild(north);
+  const text = makeElement("span", "sun-arrow-text", "SUN —");
+  box.appendChild(svg);
+  box.appendChild(text);
+  const control = L.control({ position: "bottomright" });
+  control.onAdd = function () {
+    L.DomEvent.disableClickPropagation(box);
+    return box;
+  };
+  control.addTo(map);
+  return function update(mapAngleDeg, azimuth, elevation, timeText) {
+    pointer.setAttribute("transform", "rotate(" + mapAngleDeg.toFixed(1) + ")");
+    box.classList.toggle("sun-down", elevation <= 0);
+    text.textContent = (elevation <= 0 ? "SUN BELOW HORIZON" : "SUN AZ " + azimuth.toFixed(0) + "° · EL " + elevation.toFixed(1) + "°") + " · " + timeText;
+  };
+}
+
+async function setUpSunTab(map, manifest, routes) {
+  const tab = document.getElementById("tab-sun");
+  const box = manifest.site.bounds_lonlat;
+  const lon = (box[0] + box[2]) / 2;
+  const lat = (box[1] + box[3]) / 2;
+  const horizon = manifest.horizon || null;
+  const eastScale = eastScaleOf(manifest);
+
+  tab.appendChild(makeElement("h2", "section-title", "> SKY · MARS CLOCK · SUN · EARTH LINK · ◆ CALCULATED"));
+
+  const clockCard = makeElement("div", "card");
+  clockCard.appendChild(makeElement("h3", "card-title", "MARS CLOCK · SITE CENTRE " + lon.toFixed(2) + "° E " + lat.toFixed(2) + "° N"));
+  const clock = makeElement("dl", "readout clock");
+  const fields = {};
+  for (const [key, label] of [
+    ["utc", "EARTH"],
+    ["sol", "SOL"],
+    ["lmst", "LMST"],
+    ["ltst", "LTST"],
+    ["ls", "SEASON Ls"],
+    ["sun", "SUN"],
+    ["sunrise", "SUNRISE"],
+    ["sunset", "SUNSET"],
+    ["left", "TO SUNSET"],
+  ]) {
+    clock.appendChild(makeElement("dt", "", label));
+    fields[key] = makeElement("dd", "", "—");
+    clock.appendChild(fields[key]);
+  }
+  clockCard.appendChild(clock);
+  clockCard.appendChild(
+    makeElement(
+      "p",
+      "note",
+      "SOL = Perseverance mission sol (sol 0 = landing, 18 Feb 2021). LMST = local mean solar time, LTST = local true solar time (sun-based), " +
+        "in Mars hours. Sunrise / sunset: centre of the sun at 0° over a flat horizon, no atmosphere; terrain makes it later / earlier locally (see shadows). " +
+        "Method: NASA GISS Mars24 algorithm (2025-01-07)."
+    )
+  );
+  tab.appendChild(clockCard);
+
+  const controlCard = makeElement("div", "card");
+  controlCard.appendChild(makeElement("h3", "card-title", "CHOOSE A TIME"));
+  const solRow = makeElement("div", "button-row");
+  const previousSol = makeElement("button", "text-button", "◀ SOL");
+  const nowButton = makeElement("button", "text-button", "NOW");
+  const nextSol = makeElement("button", "text-button", "SOL ▶");
+  const playButton = makeElement("button", "text-button", "▶ PLAY SOL");
+  for (const button of [previousSol, nowButton, nextSol, playButton]) {
+    button.type = "button";
+    solRow.appendChild(button);
+  }
+  controlCard.appendChild(solRow);
+  const sliderLabel = makeElement("label", "slider-label");
+  const sliderText = makeElement("span", "", "LMST —");
+  const slider = document.createElement("input");
+  slider.type = "range";
+  slider.min = "0";
+  slider.max = String(MARS_MINUTES_PER_SOL - 5);
+  slider.step = "5";
+  slider.className = "time-slider";
+  slider.setAttribute("aria-label", "Local mean solar time on the chosen sol");
+  sliderLabel.appendChild(sliderText);
+  sliderLabel.appendChild(slider);
+  controlCard.appendChild(sliderLabel);
+  const modeLine = makeElement("p", "dim", "");
+  controlCard.appendChild(modeLine);
+  tab.appendChild(controlCard);
+
+  const updateEarthLink = setUpEarthLinkCard(tab);
+
+  const shadowCard = makeElement("div", "card");
+  shadowCard.appendChild(makeElement("h3", "card-title", "ROUTES IN TERRAIN SHADOW"));
+  const shadowButtonRow = makeElement("div", "button-row");
+  const shadowToggle = makeElement("button", "text-button", "SHOW SHADOWS ON MAP");
+  shadowToggle.type = "button";
+  shadowButtonRow.appendChild(shadowToggle);
+  shadowCard.appendChild(shadowButtonRow);
+  const shadowTableHolder = makeElement("div");
+  shadowCard.appendChild(shadowTableHolder);
+  shadowCard.appendChild(
+    makeElement(
+      "p",
+      "note",
+      horizon === null
+        ? "This data pack has no terrain horizon (pipeline/horizon.py), so no shadows."
+        : "Share of each route's length in the shadow of the terrain at the chosen time (route sampled every " +
+            horizon.cell_px / 2 + " m). " + horizon.method + " Heights: " + horizon.source +
+            ". The DTM ends " + horizon.dtm_margin_m.west + " m (W), " + horizon.dtm_margin_m.east + " m (E), " +
+            horizon.dtm_margin_m.north + " m (N), " + horizon.dtm_margin_m.south + " m (S) from the walk area; " +
+            "features smaller than " + horizon.cell_px + " m (boulders) are not included."
+    )
+  );
+  tab.appendChild(shadowCard);
+
+  const updateArrow = makeSunArrow(map);
+
+  // Shadow overlay: one pixel per horizon cell.
+  let codes = null;
+  let overlay = null;
+  let showShadowLayer = null;
+  let canvas = null;
+  if (horizon !== null) {
+    try {
+      codes = await Shadow.loadCodes(horizon, packUrl);
+    } catch (error) {
+      shadowTableHolder.appendChild(makeElement("p", "note", "Shadows unavailable: " + error.message));
+    }
+  }
+  if (codes !== null) {
+    canvas = document.createElement("canvas");
+    canvas.width = horizon.width;
+    canvas.height = horizon.height;
+    const bounds = L.latLngBounds(gridToLatLng(0, horizon.height * horizon.cell_px), gridToLatLng(horizon.width * horizon.cell_px, 0));
+    overlay = L.imageOverlay(canvas.toDataURL(), bounds, { pane: "dataOverlays", className: "pixelated", interactive: false });
+    const legend = makeElement("div", "legend");
+    const row = makeElement("div", "legend-row");
+    const swatch = makeElement("span", "legend-swatch");
+    swatch.style.background = "rgba(" + SHADE_RGBA.slice(0, 3).join(",") + "," + (SHADE_RGBA[3] / 255).toFixed(2) + ")";
+    row.appendChild(swatch);
+    row.appendChild(makeElement("span", "", "IN TERRAIN SHADOW at the time chosen in the SKY tab"));
+    legend.appendChild(row);
+    legend.appendChild(makeElement("p", "note", horizon.cell_px + " m cells"));
+    showShadowLayer = addLayerButton(map, "TERRAIN SHADOW", "◆ CALCULATED · SKY TAB TIME", overlay, legend, false);
+  } else {
+    shadowToggle.disabled = true;
+  }
+
+  const state = { live: true, sol: 0, minutes: 0 };
+  let playTimer = null;
+  let lastPainted = null;
+  const sunTimesBySol = {};
+
+  function sunTimes(sol) {
+    if (!(sol in sunTimesBySol)) {
+      sunTimesBySol[sol] = MarsTime.sunriseSunset(sol, lon, lat);
+    }
+    return sunTimesBySol[sol];
+  }
+
+  function timeLine(unixMs) {
+    const at = MarsTime.sun(unixMs, lon, lat);
+    return "LTST " + MarsTime.formatHours(at.ltst) + " · LMST " + MarsTime.formatHours(at.lmst) + " · " + formatUtc(unixMs);
+  }
+
+  function paintShadows(at) {
+    if (codes === null) {
+      return;
+    }
+    const sunKey = { az: at.azimuth, el: at.elevation };
+    const moved =
+      lastPainted === null ||
+      Math.abs(lastPainted.az - sunKey.az) > REPAINT_MIN_SUN_CHANGE_DEG ||
+      Math.abs(lastPainted.el - sunKey.el) > REPAINT_MIN_SUN_CHANGE_DEG;
+    if (!moved) {
+      return;
+    }
+    lastPainted = sunKey;
+    if (map.hasLayer(overlay)) {
+      const context = canvas.getContext("2d");
+      const image = context.createImageData(horizon.width, horizon.height);
+      Shadow.paintShadow(horizon, codes, image.data, at.azimuth, at.elevation, SHADE_RGBA);
+      context.putImageData(image, 0, 0);
+      overlay.setUrl(canvas.toDataURL());
+    }
+    const rows = [];
+    for (const leg of routes) {
+      const cells = ["LEG " + leg.from + " → " + leg.to];
+      for (const kind of ["shortest", "gentlest"]) {
+        if (leg[kind] === null) {
+          cells.push("no data");
+          continue;
+        }
+        const result = Shadow.routeShadow(horizon, codes, leg[kind].points, at.azimuth, at.elevation);
+        cells.push(result.shadow === null ? "no data" : Math.round(result.shadow * 100) + " %");
+      }
+      rows.push(cells);
+    }
+    shadowTableHolder.replaceChildren(factTable(["IN SHADOW", "SHORTEST", "GENTLEST"], rows));
+    if (at.elevation <= 0) {
+      shadowTableHolder.appendChild(makeElement("p", "dim", "NIGHT: the sun is below 0°, the whole area is without direct sunlight."));
+    }
+  }
+
+  function render() {
+    let unixMs;
+    if (state.live) {
+      unixMs = Date.now();
+      state.sol = MarsTime.m20Sol(unixMs);
+      state.minutes = Math.floor(MarsTime.sun(unixMs, lon, lat).lmst * 60);
+    } else {
+      unixMs = MarsTime.unixMsAtLocalTime(state.sol, state.minutes / 60, lon);
+    }
+    const at = MarsTime.sun(unixMs, lon, lat);
+    const times = sunTimes(state.sol);
+    fields.utc.textContent = state.live
+      ? new Date(unixMs).toISOString().slice(0, 19).replace("T", " ") + " UTC (now)"
+      : formatUtc(unixMs) + " (chosen)";
+    fields.sol.textContent = String(state.sol) + " · Mars Sol Date " + MarsTime.marsSolDate(unixMs).toFixed(3);
+    fields.lmst.textContent = MarsTime.formatHours(at.lmst);
+    fields.ltst.textContent = MarsTime.formatHours(at.ltst);
+    fields.ls.textContent = at.ls.toFixed(1) + "°";
+    fields.sun.textContent = "azimuth " + at.azimuth.toFixed(1) + "° · elevation " + at.elevation.toFixed(1) + "°";
+    fields.sunrise.textContent = times.sunrise === null ? "none this sol" : timeLine(times.sunrise);
+    fields.sunset.textContent = times.sunset === null ? "none this sol" : timeLine(times.sunset);
+    if (times.sunset === null) {
+      fields.left.textContent = "—";
+    } else if (unixMs < times.sunset) {
+      fields.left.textContent = formatEarthDuration(times.sunset - unixMs) + " (Earth time)";
+    } else {
+      fields.left.textContent = "after sunset";
+    }
+    slider.value = String(state.minutes - (state.minutes % 5));
+    sliderText.textContent = "SOL " + state.sol + " · LMST " + MarsTime.formatHours(state.minutes / 60);
+    modeLine.textContent = state.live ? "SHOWING NOW (updates every second)" : playTimer !== null ? "PLAYING THE SOL" : "SHOWING THE CHOSEN TIME";
+    updateEarthLink(unixMs);
+    updateArrow(Shadow.mapAngle(at.azimuth, eastScale), at.azimuth, at.elevation, "LMST " + MarsTime.formatHours(at.lmst) + (state.live ? " NOW" : ""));
+    paintShadows(at);
+  }
+
+  function stopPlaying() {
+    if (playTimer !== null) {
+      clearInterval(playTimer);
+      playTimer = null;
+      playButton.textContent = "▶ PLAY SOL";
+    }
+  }
+
+  function choose(sol, minutes) {
+    state.live = false;
+    state.sol = sol;
+    state.minutes = ((minutes % MARS_MINUTES_PER_SOL) + MARS_MINUTES_PER_SOL) % MARS_MINUTES_PER_SOL;
+    render();
+  }
+
+  previousSol.addEventListener("click", function () {
+    choose(state.sol - 1, state.minutes);
+  });
+  nextSol.addEventListener("click", function () {
+    choose(state.sol + 1, state.minutes);
+  });
+  nowButton.addEventListener("click", function () {
+    stopPlaying();
+    state.live = true;
+    render();
+  });
+  slider.addEventListener("input", function () {
+    stopPlaying();
+    choose(state.sol, Number(slider.value));
+  });
+  playButton.addEventListener("click", function () {
+    if (playTimer !== null) {
+      stopPlaying();
+      render();
+      return;
+    }
+    if (showShadowLayer !== null && !map.hasLayer(overlay)) {
+      showShadowLayer(true);
+      lastPainted = null;
+    }
+    playButton.textContent = "■ STOP";
+    playTimer = setInterval(function () {
+      choose(state.sol, state.minutes + PLAY_STEP_MARS_MINUTES);
+    }, PLAY_INTERVAL_MS);
+    choose(state.sol, state.minutes);
+  });
+  shadowToggle.addEventListener("click", function () {
+    if (showShadowLayer !== null) {
+      showShadowLayer(!map.hasLayer(overlay));
+    }
+  });
+  if (overlay !== null) {
+    overlay.on("add", function () {
+      lastPainted = null;
+      shadowToggle.textContent = "HIDE SHADOWS ON MAP";
+      render();
+    });
+    overlay.on("remove", function () {
+      shadowToggle.textContent = "SHOW SHADOWS ON MAP";
+    });
+  }
+  setInterval(function () {
+    if (state.live) {
+      render();
+    }
+  }, 1000);
+  render();
+}
+
+// ---------------------------------------------------------------- Earth link (SKY tab)
+
+// NASA NSSDC fact sheets (Earth, Mars): sidereal orbit periods, for drawing the orbits only.
+const ORBIT_PERIOD_DAYS = { earth: 365.256, mars: 686.98 };
+const DIAGRAM_SIZE_PX = 280;
+const DIAGRAM_MAX_AU = 1.75;
+const MESSAGE_SPEEDS = [1, 60]; // real time, 60x faster (shown on screen)
+const MESSAGE_MAX_CHARS = 140;
+
+function svgElement(name, attributes) {
+  const element = document.createElementNS("http://www.w3.org/2000/svg", name);
+  for (const [key, value] of Object.entries(attributes)) {
+    element.setAttribute(key, String(value));
+  }
+  return element;
+}
+
+function setUpEarthLinkCard(tab) {
+  const card = makeElement("div", "card");
+  card.appendChild(makeElement("h3", "card-title", "EARTH LINK · ◆ CALCULATED"));
+  const facts = makeElement("dl", "readout clock");
+  const fields = {};
+  for (const [key, label] of [
+    ["oneWay", "ONE WAY"],
+    ["roundTrip", "ROUND TRIP"],
+    ["distance", "DISTANCE"],
+    ["angle", "SUN–EARTH–MARS"],
+  ]) {
+    facts.appendChild(makeElement("dt", "", label));
+    fields[key] = makeElement("dd", "", "—");
+    facts.appendChild(fields[key]);
+  }
+  card.appendChild(facts);
+
+  const scale = DIAGRAM_SIZE_PX / 2 / DIAGRAM_MAX_AU;
+  const svg = svgElement("svg", {
+    viewBox: -DIAGRAM_SIZE_PX / 2 + " " + -DIAGRAM_SIZE_PX / 2 + " " + DIAGRAM_SIZE_PX + " " + DIAGRAM_SIZE_PX,
+    class: "orbit-diagram",
+    role: "img",
+    "aria-label": "Sun, Earth and Mars to scale, seen from above the ecliptic",
+  });
+  const earthOrbit = svgElement("polyline", { class: "orbit" });
+  const marsOrbit = svgElement("polyline", { class: "orbit" });
+  const linkLine = svgElement("line", { class: "link-line" });
+  const sunDot = svgElement("circle", { r: 6, class: "body-sun" });
+  const earthDot = svgElement("circle", { r: 4, class: "body-earth" });
+  const marsDot = svgElement("circle", { r: 4, class: "body-mars" });
+  const pulse = svgElement("circle", { r: 4, class: "pulse", visibility: "hidden" });
+  const earthLabel = svgElement("text", { class: "body-label" });
+  earthLabel.textContent = "EARTH";
+  const marsLabel = svgElement("text", { class: "body-label" });
+  marsLabel.textContent = "MARS";
+  for (const element of [earthOrbit, marsOrbit, linkLine, sunDot, earthDot, marsDot, pulse, earthLabel, marsLabel]) {
+    svg.appendChild(element);
+  }
+  card.appendChild(svg);
+  card.appendChild(makeElement("p", "note", "To scale, ecliptic seen from the north, x towards the March equinox. Orbits drawn from the same formulas over one orbit."));
+
+  // SEND simulation
+  card.appendChild(makeElement("h3", "card-title", "SEND A MESSAGE · SIMULATION"));
+  const input = document.createElement("input");
+  input.type = "text";
+  input.maxLength = MESSAGE_MAX_CHARS;
+  input.className = "message-input";
+  input.placeholder = "message to Earth";
+  input.setAttribute("aria-label", "Message to send to Earth (simulation)");
+  card.appendChild(input);
+  const buttons = makeElement("div", "button-row");
+  const sendButton = makeElement("button", "text-button", "SEND ▶");
+  sendButton.type = "button";
+  const speedButton = makeElement("button", "text-button", "SPEED: REAL TIME");
+  speedButton.type = "button";
+  buttons.appendChild(sendButton);
+  buttons.appendChild(speedButton);
+  card.appendChild(buttons);
+  const status = makeElement("p", "", "—");
+  status.setAttribute("aria-live", "polite");
+  const progress = makeElement("div", "message-progress");
+  const progressBar = makeElement("div", "message-progress-bar");
+  progress.appendChild(progressBar);
+  card.appendChild(progress);
+  card.appendChild(status);
+  card.appendChild(
+    makeElement(
+      "p",
+      "note",
+      "SIMULATION: nothing is sent. Timing is light time only, at the time chosen above; real links add relay orbiter passes and Deep Space Network schedules. " +
+        "SUN–EARTH–MARS near 0° = solar conjunction (Mars behind the Sun seen from Earth). " +
+        "Method: Mars from NASA GISS Mars24 (D-2..D-4), Earth from JPL \"Approximate Positions of the Planets\" Table 1 (1800–2050); light speed 299,792.458 km/s, AU 149,597,870.7 km."
+    )
+  );
+  tab.appendChild(card);
+
+  let speedIndex = 0;
+  let message = null; // {text, timeline, startedReal, speed}
+  let lastLink = null;
+  let lastOrbitDay = null;
+  let animation = null;
+
+  function toSvg(xyz) {
+    return [xyz[0] * scale, -xyz[1] * scale];
+  }
+
+  function drawOrbits(unixMs) {
+    const day = Math.floor(unixMs / 86400000);
+    if (day === lastOrbitDay) {
+      return;
+    }
+    lastOrbitDay = day;
+    for (const [line, positionAt, period] of [
+      [earthOrbit, MarsTime.earthXyz, ORBIT_PERIOD_DAYS.earth],
+      [marsOrbit, MarsTime.marsXyz, ORBIT_PERIOD_DAYS.mars],
+    ]) {
+      const points = Comms.orbitPath(positionAt, unixMs, period, 180).map(function (point) {
+        return (point[0] * scale).toFixed(1) + "," + (-point[1] * scale).toFixed(1);
+      });
+      line.setAttribute("points", points.join(" "));
+    }
+  }
+
+  function placeBody(dot, label, xyz) {
+    const point = toSvg(xyz);
+    dot.setAttribute("cx", point[0].toFixed(1));
+    dot.setAttribute("cy", point[1].toFixed(1));
+    label.setAttribute("x", (point[0] + 7).toFixed(1));
+    label.setAttribute("y", (point[1] - 7).toFixed(1));
+  }
+
+  function showMessage() {
+    if (message === null) {
+      return;
+    }
+    const simulatedNow = message.timeline.sent + (Date.now() - message.startedReal) * message.speed;
+    const state = Comms.messageState(message.timeline, simulatedNow);
+    const mars = toSvg(message.mars);
+    const earth = toSvg(message.earth);
+    let from = mars;
+    let to = earth;
+    if (state.phase === "to-mars") {
+      from = earth;
+      to = mars;
+    }
+    pulse.setAttribute("visibility", state.phase === "done" ? "hidden" : "visible");
+    pulse.setAttribute("cx", (from[0] + (to[0] - from[0]) * state.fraction).toFixed(1));
+    pulse.setAttribute("cy", (from[1] + (to[1] - from[1]) * state.fraction).toFixed(1));
+    pulse.setAttribute("class", state.phase === "to-mars" ? "pulse reply" : "pulse");
+    const total = (message.timeline.earliestReply - message.timeline.sent);
+    progressBar.style.width = (Math.min(1, (simulatedNow - message.timeline.sent) / total) * 100).toFixed(1) + "%";
+    const quoted = "“" + message.text + "”";
+    const speedText = message.speed === 1 ? "" : " · shown " + message.speed + "× faster";
+    if (state.phase === "to-earth") {
+      status.textContent = "IN TRANSIT TO EARTH " + quoted + " · arrives in " +
+        Comms.formatDuration((message.timeline.arrivesEarth - simulatedNow) / 1000) + " (" + formatUtc(message.timeline.arrivesEarth) + ")" + speedText;
+    } else if (state.phase === "to-mars") {
+      status.textContent = "ARRIVED AT EARTH " + formatUtc(message.timeline.arrivesEarth) + " · earliest reply reaches Mars in " +
+        Comms.formatDuration((message.timeline.earliestReply - simulatedNow) / 1000) + " (" + formatUtc(message.timeline.earliestReply) + ")" + speedText;
+    } else {
+      status.textContent = "DONE · sent " + formatUtc(message.timeline.sent) + " · at Earth " + formatUtc(message.timeline.arrivesEarth) +
+        " · earliest reply at Mars " + formatUtc(message.timeline.earliestReply);
+      sendButton.disabled = false;
+      animation = null;
+      return;
+    }
+    animation = requestAnimationFrame(showMessage);
+  }
+
+  sendButton.addEventListener("click", function () {
+    if (lastLink === null) {
+      return;
+    }
+    const text = input.value.trim().slice(0, MESSAGE_MAX_CHARS) || "(empty message)";
+    if (animation !== null) {
+      cancelAnimationFrame(animation);
+    }
+    message = {
+      text: text,
+      timeline: Comms.messageTimeline(lastLink.unixMs, lastLink.oneWaySeconds),
+      startedReal: Date.now(),
+      speed: MESSAGE_SPEEDS[speedIndex],
+      mars: lastLink.mars,
+      earth: lastLink.earth,
+    };
+    showMessage();
+  });
+  speedButton.addEventListener("click", function () {
+    speedIndex = (speedIndex + 1) % MESSAGE_SPEEDS.length;
+    speedButton.textContent = "SPEED: " + (MESSAGE_SPEEDS[speedIndex] === 1 ? "REAL TIME" : MESSAGE_SPEEDS[speedIndex] + "× FASTER");
+  });
+
+  return function update(unixMs) {
+    const link = MarsTime.earthLink(unixMs);
+    lastLink = { unixMs: unixMs, oneWaySeconds: link.oneWaySeconds, mars: link.mars, earth: link.earth };
+    fields.oneWay.textContent = Comms.formatDuration(link.oneWaySeconds);
+    fields.roundTrip.textContent = Comms.formatDuration(2 * link.oneWaySeconds);
+    fields.distance.textContent = link.distanceAu.toFixed(3) + " AU · " + ((link.distanceAu * 149597870.7) / 1e6).toFixed(1) + " million km";
+    fields.angle.textContent = link.sunMarsAngleDeg.toFixed(1) + "°";
+    drawOrbits(unixMs);
+    linkLine.setAttribute("x1", toSvg(link.mars)[0].toFixed(1));
+    linkLine.setAttribute("y1", toSvg(link.mars)[1].toFixed(1));
+    linkLine.setAttribute("x2", toSvg(link.earth)[0].toFixed(1));
+    linkLine.setAttribute("y2", toSvg(link.earth)[1].toFixed(1));
+    placeBody(earthDot, earthLabel, link.earth);
+    placeBody(marsDot, marsLabel, link.mars);
+  };
+}
+
 // ---------------------------------------------------------------- STOPS tab
 
 function fillStopsTab(stops, mission, progress) {
@@ -734,11 +1292,12 @@ function showStopCard(stopId) {
 // ---------------------------------------------------------------- DATA tab
 
 const KNOWN_LIMITS = [
-  "Terrain cells are 1 m: rocks and obstacles smaller than about 1 m are not in the terrain data.",
+  "Terrain cells are about 1 m (east-west they are cos(latitude) shorter on the ground, see GROUND_SCALE in methods): rocks and obstacles smaller than about 1 m are not in the terrain data.",
   "Slope depends on cell size: these values are slopes over 1 m.",
   "Cursor readout uses values sampled every 4 m; stop cards and routes use every 1 m cell.",
   "Stop positions are where the rover was on that sol, not the exact spot each photo shows.",
   "Current surface conditions (weather, dust) are not included.",
+  "Shadows use 16 m terrain cells and terrain inside the HiRISE DTM only (the far crater rim is outside it); no atmosphere, the sun is treated as a point.",
 ];
 
 function fillDataTab(manifest) {
@@ -786,6 +1345,27 @@ function fillDataTab(manifest) {
   );
   tab.appendChild(photosCard);
 
+  const sunCard = makeElement("div", "card");
+  sunCard.appendChild(makeElement("h3", "card-title", "SUN, MARS CLOCK, SHADOWS · ◆ CALCULATED"));
+  sunCard.appendChild(
+    makeElement(
+      "p",
+      "note",
+      "Mars time, sun position, sunrise and sunset: NASA GISS Mars24 \"Algorithm and Worked Examples\" (Allison 1997; Allison & McEwen 2000), updated 2025-01-07."
+    )
+  );
+  sunCard.appendChild(
+    makeElement(
+      "p",
+      "note",
+      "Perseverance sol: sol 0 = landing sol (2021-02-18 20:55 UTC), local mean solar time at the landing site (first NASA M20 waypoint); checked against sols in NASA raw-image IDs."
+    )
+  );
+  if (manifest.horizon) {
+    sunCard.appendChild(makeElement("p", "note", "Terrain shadow: " + manifest.horizon.method + " Heights: " + manifest.horizon.source + "."));
+  }
+  tab.appendChild(sunCard);
+
   const limitsCard = makeElement("div", "card");
   limitsCard.appendChild(makeElement("h3", "card-title", "KNOWN LIMITS"));
   for (const limit of KNOWN_LIMITS) {
@@ -796,11 +1376,26 @@ function fillDataTab(manifest) {
 
 // ---------------------------------------------------------------- HUD (next stop, bearing, distance)
 
-// Bearing in degrees clockwise from map north (up). Rows grow downwards, so north is -row.
-function bearingDegrees(from, to) {
-  const east = to[0] - from[0];
-  const north = from[1] - to[1];
-  return (Math.atan2(east, north) * 180 / Math.PI + 360) % 360;
+// Ground metres per grid metre east-west (equirectangular grid, true scale at the equator).
+function eastScaleOf(manifest) {
+  return typeof manifest.grid.east_scale === "number" ? manifest.grid.east_scale : 1;
+}
+
+// Ground offset in metres [east, north] between two grid positions. Rows grow downwards.
+function groundOffset(manifest, from, to) {
+  const metres = manifest.grid.metres_per_pixel;
+  return [(to[0] - from[0]) * metres * eastScaleOf(manifest), (from[1] - to[1]) * metres];
+}
+
+// Bearing on the ground in degrees clockwise from north (map up).
+function bearingDegrees(manifest, from, to) {
+  const offset = groundOffset(manifest, from, to);
+  return (Math.atan2(offset[0], offset[1]) * 180 / Math.PI + 360) % 360;
+}
+
+function groundDistance(manifest, from, to) {
+  const offset = groundOffset(manifest, from, to);
+  return Math.hypot(offset[0], offset[1]);
 }
 
 // Mission progress: the stops this viewer has marked as reached, kept on this device only.
@@ -857,7 +1452,6 @@ function questionFor(mission, stopId) {
 
 function setUpMissionTab(map, manifest, mission, stops, routes, progress) {
   const tab = document.getElementById("tab-hud");
-  const metresPerPixel = manifest.grid.metres_per_pixel;
   let atIndex = 0;
 
   // Briefing: name, objective (set by the mission planner) and its sources.
@@ -962,8 +1556,8 @@ function setUpMissionTab(map, manifest, mission, stops, routes, progress) {
       document.getElementById("strip-distance").textContent = progress.count() + "/" + stops.length + " REACHED";
     } else {
       const target = stops[atIndex + 1];
-      const bearing = bearingDegrees(at.position, target.position);
-      const straight = Math.hypot(target.position[0] - at.position[0], target.position[1] - at.position[1]) * metresPerPixel;
+      const bearing = bearingDegrees(manifest, at.position, target.position);
+      const straight = groundDistance(manifest, at.position, target.position);
       let leg = null;
       for (const candidate of routes) {
         if (candidate.from === at.id && candidate.to === target.id) {
@@ -1301,11 +1895,13 @@ async function launchMission(entry) {
   openTab("hud");
   introFlight(created.map, manifest);
   await setUpReadout(created.map, manifest);
+  await setUpSunTab(created.map, manifest, routes);
+  await setUpLineOfSight(created.map, manifest, stops);
   saveForOffline(); // runs in the background after the app is ready
 }
 
 // Commands from the wrist device page. Only messages from this same site are accepted.
-const DEVICE_TABS = ["map", "route", "stops", "data", "hud"];
+const DEVICE_TABS = ["map", "route", "stops", "sun", "data", "hud"];
 
 function setUpDeviceCommands() {
   window.addEventListener("message", function (event) {

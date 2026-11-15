@@ -14,7 +14,8 @@ manifest.json
     created          date the pack was built, "YYYY-MM-DD"
     site             name, bounds_px [col_min, row_min, col_max, row_max],
                      bounds_lonlat [west, south, east, north]
-    grid             width, height (pixels), metres_per_pixel
+    grid             width, height (pixels), metres_per_pixel (north-south), optional
+                     east_scale (ground metres per grid metre east-west, 0-1]
     layers           list of layers (below)
 
 Each layer has: id, kind (LAYER_KINDS), units, legend, source, product_id,
@@ -29,6 +30,10 @@ layers (for example the routes).
 Optional manifest field "readouts": [{"id", "file", "units", "base", "step",
 "sample_every_px", "no_data_code", "label", "source"}]: images holding cursor
 readout values as 16-bit codes (value = base + code * step).
+Optional manifest field "horizon": terrain horizon angles for sun and shadow
+(pipeline/horizon.py): cell_px, width, height, directions_deg, angle_step_deg,
+no_data_code, method, label, source and files [{"file", "directions_deg"}]:
+RGB images, one direction per colour channel, angle = code * angle_step_deg.
 
 Positions are pixel [col, row] on the grid, counted from the top-left corner.
 
@@ -235,6 +240,9 @@ def check_grid(grid, errors):
     if not is_number(metres_per_pixel) or metres_per_pixel <= 0:
         errors.append("manifest grid metres_per_pixel: must be a positive number")
         grid_is_valid = False
+    if "east_scale" in grid and (not is_number(grid["east_scale"]) or not 0 < grid["east_scale"] <= 1):
+        errors.append("manifest grid east_scale: must be a number in (0, 1]")
+        grid_is_valid = False
     if not grid_is_valid:
         return None
     return grid
@@ -426,6 +434,36 @@ def check_readouts(pack_dir, readouts, errors):
             errors.append(f"{where}: label {readout['label']!r} is not one of {VALUE_LABELS}")
 
 
+REQUIRED_HORIZON_FIELDS = (
+    "cell_px", "width", "height", "directions_deg", "angle_step_deg", "no_data_code", "method", "label", "source", "files",
+)
+
+
+def check_horizon(pack_dir, horizon, grid, errors):
+    if not isinstance(horizon, dict) or not check_required_fields(horizon, REQUIRED_HORIZON_FIELDS, "manifest horizon", errors):
+        return
+    for field_name in ("cell_px", "width", "height"):
+        if not is_integer(horizon[field_name]) or horizon[field_name] <= 0:
+            errors.append(f"manifest horizon: {field_name} must be a positive integer")
+            return
+    if grid is not None and (horizon["width"] * horizon["cell_px"] < grid["width"] or horizon["height"] * horizon["cell_px"] < grid["height"]):
+        errors.append("manifest horizon: does not cover the grid")
+    if horizon["label"] != CALCULATED_LABEL:
+        errors.append("manifest horizon: label must be CALCULATED")
+    listed = []
+    for index, horizon_file in enumerate(horizon["files"]):
+        where = f"manifest horizon file {index}"
+        if not isinstance(horizon_file, dict) or not check_required_fields(horizon_file, ("file", "directions_deg"), where, errors):
+            continue
+        check_pack_file(pack_dir, horizon_file["file"], where, errors)
+        if not isinstance(horizon_file["directions_deg"], list) or not 1 <= len(horizon_file["directions_deg"]) <= 3:
+            errors.append(f"{where}: directions_deg must list 1 to 3 directions")
+            continue
+        listed.extend(horizon_file["directions_deg"])
+    if listed != horizon["directions_deg"]:
+        errors.append("manifest horizon: files must hold directions_deg in order")
+
+
 REQUIRED_PACK_MISSION_FIELDS = ("id", "name", "status", "objective", "objective_sources", "site", "questions")
 
 
@@ -468,6 +506,8 @@ def validate_pack(pack_dir):
                 if not is_text(method_text):
                     errors.append(f"manifest methods {method_name!r}: must be text")
     check_layers(pack_dir, manifest["layers"], errors)
+    if "horizon" in manifest:
+        check_horizon(pack_dir, manifest["horizon"], grid, errors)
 
     stop_ids = set()
     stops = load_json_file(os.path.join(pack_dir, STOPS_FILE_NAME), "stops", list, errors)

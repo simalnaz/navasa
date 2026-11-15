@@ -167,13 +167,93 @@ const MarsTime = (function () {
     return pointMass * flattening - omega * omega * radius * cos(latitude) ** 2;
   }
 
+  // Mars Sol Date (Mars24 C-2) and Perseverance sols. Sol 0 = landing sol, 2021-02-18 20:55 UTC
+  // (NASA landing confirmation), counted in LMST at the landing site (first M20 waypoint, 77.45088572 E).
+  // Same as pipeline/mars_time.py, checked there against NASA raw-image IDs.
+  const M20_LANDING_UNIX_MS = 1613681700000;
+  const M20_LANDING_EAST_LONGITUDE = 77.45088572;
+  const MARS_SOL_EARTH_DAYS = 1.0274912517;
+
+  function marsSolDate(unixMs) {
+    return (daysSinceJ2000(unixMs).jdTt - 2451549.5) / MARS_SOL_EARTH_DAYS + 44796.0 - 0.0009626;
+  }
+
+  function unixMsFromMarsSolDate(solDate) {
+    const jdTt = (solDate - 44796.0 + 0.0009626) * MARS_SOL_EARTH_DAYS + 2451549.5;
+    return (jdTt - TT_MINUS_UTC_S / 86400 - 2440587.5) * 86400000;
+  }
+
+  function localSolDate(unixMs, eastLongitude) {
+    return marsSolDate(unixMs) - mod(360 - eastLongitude, 360) / 360;
+  }
+
+  const M20_LANDING_SOL_DATE = Math.floor(localSolDate(M20_LANDING_UNIX_MS, M20_LANDING_EAST_LONGITUDE));
+
+  function m20Sol(unixMs) {
+    return Math.floor(localSolDate(unixMs, M20_LANDING_EAST_LONGITUDE)) - M20_LANDING_SOL_DATE;
+  }
+
+  // UTC (ms) of a local mean solar time (Mars hours) on a Perseverance sol, at a longitude.
+  function unixMsAtLocalTime(sol, lmstHours, eastLongitude) {
+    const localDate = M20_LANDING_SOL_DATE + sol + lmstHours / 24;
+    return unixMsFromMarsSolDate(localDate + mod(360 - eastLongitude, 360) / 360);
+  }
+
+  // Sunrise and sunset (sun centre crossing 0° over a flat horizon) on a sol: UTC ms or null.
+  function sunriseSunset(sol, eastLongitude, latitude) {
+    const stepHours = 1 / 30; // 2 Mars minutes
+    function elevationAt(hours) {
+      return sun(unixMsAtLocalTime(sol, hours, eastLongitude), eastLongitude, latitude).elevation;
+    }
+    function crossing(lowHours, highHours) {
+      let low = lowHours;
+      let high = highHours;
+      const lowSign = elevationAt(low) > 0;
+      for (let step = 0; step < 30; step++) {
+        const middle = (low + high) / 2;
+        if (elevationAt(middle) > 0 === lowSign) {
+          low = middle;
+        } else {
+          high = middle;
+        }
+      }
+      return unixMsAtLocalTime(sol, (low + high) / 2, eastLongitude);
+    }
+    let sunrise = null;
+    let sunset = null;
+    let previous = elevationAt(0);
+    for (let hours = stepHours; hours <= 24 + 1e-9; hours += stepHours) {
+      const now = elevationAt(hours);
+      if (previous <= 0 && now > 0 && sunrise === null) {
+        sunrise = crossing(hours - stepHours, hours);
+      } else if (previous > 0 && now <= 0 && sunset === null) {
+        sunset = crossing(hours - stepHours, hours);
+      }
+      previous = now;
+    }
+    return { sunrise: sunrise, sunset: sunset };
+  }
+
   // Mars hours as hh:mm (Mars hours have 60 Mars minutes).
   function formatHours(hours) {
     const total = Math.round(mod(hours, 24) * 60);
     return String(Math.floor(total / 60) % 24).padStart(2, "0") + ":" + String(total % 60).padStart(2, "0");
   }
 
-  return { sun: sun, earthLink: earthLink, gravity: gravity, formatHours: formatHours, GRAVITY: GRAVITY };
+  return {
+    sun: sun,
+    earthLink: earthLink,
+    earthXyz: earthXyz,
+    marsXyz: marsXyz,
+    gravity: gravity,
+    formatHours: formatHours,
+    marsSolDate: marsSolDate,
+    m20Sol: m20Sol,
+    unixMsAtLocalTime: unixMsAtLocalTime,
+    sunriseSunset: sunriseSunset,
+    MARS_SOL_EARTH_DAYS: MARS_SOL_EARTH_DAYS,
+    GRAVITY: GRAVITY,
+  };
 })();
 
 if (typeof module !== "undefined") {

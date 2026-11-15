@@ -21,6 +21,7 @@ NAVASA is an entry to the NASA Space Apps Challenge 2026. It is not affiliated w
 | **MAP** | HiRISE 25 cm image, slope (5° bands) and rock units; elevation, slope and unit under the cursor or a tap |
 | **ROUTE** | For each leg, shortest vs gentlest route: distance, climb, descent, steepest point (and where it is) |
 | **STOPS** | Rock unit and its description, Perseverance photos (two cameras), the mission question, "mark stop as reached" |
+| **SKY** | Mars clock (Perseverance sol, LMST, LTST, season Ls), sunrise and sunset, time to sunset; choose a sol and time or play the sol; terrain shadows on the map; share of each route in shadow; sun arrow on the map; **Earth link**: one-way and round-trip light time, distance, Sun–Earth–Mars angle, a to-scale Sun–Earth–Mars diagram and a **SEND** message simulation (real time or 60× faster) |
 | **DATA** | Source, product, date, label (NASA DATA or CALCULATED) and method of every layer and number; known limits |
 | **MISSION** | Objective and its sources, progress, next stop with bearing and distance |
 
@@ -62,6 +63,12 @@ The mission objective's fact ("Perseverance found a potential biosignature") com
 | Ground slope at a stop | Slope of the 1 m cell at the stop position. |
 | Bearing, straight distance | From the two stops' grid positions; bearing in degrees clockwise from map north. |
 | Cursor readout | Value of the nearest 1 m cell, sampled every 4 m. |
+| Mars clock, sun position, sunrise / sunset | NASA GISS [Mars24 algorithm](https://www.giss.nasa.gov/tools/mars24/help/algorithm.html) (updated 2025-01-07); sunrise / sunset = sun centre at 0° over a flat horizon, no atmosphere. |
+| Perseverance sol | Sol 0 = landing sol (2021-02-18 20:55 UTC), counted in local mean solar time at the landing site; tested against the sols in NASA raw-image IDs. |
+| Earth–Mars light time | Distance between Mars (Mars24 D-2..D-4) and Earth ([JPL approximate positions](https://ssd.jpl.nasa.gov/planets/approx_pos.html), Table 1, 1800–2050) ÷ light speed. SEND simulation: arrives after one light time, earliest reply after two; relay passes and DSN schedules not included. |
+| Ground scale | The grid is equirectangular with true scale at the equator: one cell is 1 m north-south and cos(latitude) m east-west on the ground (0.948 m at Jezero). Slope, distances, bearings, the scale bar and shadows use ground metres. |
+| Terrain horizon | Per 16 m cell and 36 directions: the highest angle to the terrain within 10 km inside the HiRISE DTM, with Mars curvature (d² / 2R); east-west map distances corrected to ground distances (× cos latitude). |
+| Terrain shadow, route in shadow | In shadow when the sun is at or below 0° or lower than the horizon in its direction (interpolated between directions); route share sampled every 8 m. |
 
 Display choices (no meaning beyond telling things apart): 5° slope bands, unit colours and hatch patterns, the 1,000 m margin around the stops, the 250 m offline detail corridor.
 
@@ -74,6 +81,7 @@ Display choices (no meaning beyond telling things apart): 5° slope bands, unit 
 - Current surface conditions (weather, dust) are not included.
 - Unit descriptions are included for the units at the stops; other units show their name only.
 - Offline, full detail is saved only within 250 m of the routes and stops.
+- Shadows use 16 m terrain cells and only the terrain inside the HiRISE DTM (3.7–9.2 km beyond the walk area); the far crater rim is not included. No atmosphere; the sun is treated as a point.
 
 ---
 
@@ -117,10 +125,11 @@ The new mission appears on the boot screen. Each objective needs a source; missi
 ## Repository layout
 
 ```
-pipeline/   Python steps: mission, stops, crop_layers, terrain, routes, geology, build_pack, pack_format, run_mission, make_globe
+pipeline/   Python steps: mission, stops, crop_layers, terrain, routes, geology, thermal, horizon, build_pack, pack_format,
+            run_mission, make_globe, context_maps, mars_time
 tests/      unittest
 data/       missions/ (mission files), unit_descriptions.json; raw/ and work/ are not committed
-web/        the app: index.html, styles.css, app.js, globe.js, sw.js, wrist.html/css/js, vendor/leaflet,
+web/        the app: index.html, styles.css, app.js, globe.js, marstime.js, sun.js, comms.js, sw.js, wrist.html/css/js, vendor/leaflet,
             missions.json, data/<pack>/, data/globe/
 .github/    workflow that publishes web/ to GitHub Pages
 ```

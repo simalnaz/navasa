@@ -2,13 +2,14 @@
 
     python -m pipeline.run_mission data/missions/<mission>.json
 
-Steps: check the mission file, crop the layers, slope, routes, geology, build
+Steps: check the mission file, crop the layers, slope, routes, geology, thermal,
+terrain horizon, coverage, Mars context, build
 and check the pack. Stops at the first step that fails.
 """
 
 import sys
 
-from pipeline import build_pack, context_maps, coverage_check, crop_layers, geology, routes, terrain, thermal
+from pipeline import build_pack, context_maps, coverage_check, crop_layers, geology, horizon, routes, terrain, thermal
 from pipeline.mission import MissionFileError, load_mission, mission_path_from_arguments
 
 STEPS = (
@@ -17,6 +18,7 @@ STEPS = (
     ("routes", routes.main),
     ("geology", geology.main),
     ("thermal (THEMIS)", thermal.main),
+    ("terrain horizon for sun and shadow", horizon.main),
     ("coverage check", coverage_check.main),
     ("Mars context layers (planet, region, crater)", context_maps.main),
     ("build and check the data pack", build_pack.main),
