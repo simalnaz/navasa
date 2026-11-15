@@ -206,6 +206,14 @@ def local_sol_date(unix_ms, east_longitude_deg):
     return mars_sol_date(unix_ms) - west_longitude / 360.0
 
 
+def unix_ms_at_m20_local_time(sol, lmst_hours):
+    """UTC (ms) of a local mean solar time (Mars hours) on a Perseverance sol, at the landing site."""
+    landing_sol = math.floor(local_sol_date(M20_LANDING_UNIX_MS, M20_LANDING_EAST_LONGITUDE))
+    local_date = landing_sol + sol + lmst_hours / 24.0
+    west_longitude = (360.0 - M20_LANDING_EAST_LONGITUDE) % 360.0
+    return unix_ms_from_mars_sol_date(local_date + west_longitude / 360.0)
+
+
 def m20_sol(unix_ms):
     """Perseverance mission sol at a moment (sol 0 = landing sol)."""
     landing_sol = math.floor(local_sol_date(M20_LANDING_UNIX_MS, M20_LANDING_EAST_LONGITUDE))

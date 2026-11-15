@@ -382,6 +382,7 @@ body {
   inset: 0;
   border-radius: 50%;
   pointer-events: none;
+  transform: rotate(-120deg); /* first position (image only) until the app reports in */
   transition: transform 0.25s ease;
 }
 
@@ -397,16 +398,43 @@ body {
   box-shadow: 0 0 6px var(--amber);
 }
 
-.knob-step {
-  width: 44px;
-  height: 44px;
-  border: 1px solid #3a3f3a;
+/* Layer selector readout beside the knob: name of the layer on, one dot per position */
+.selector-readout {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 150px;
+  padding: 6px 10px;
+  border: 1px solid #2c302c;
+  border-radius: 6px;
+  background: #0b0d0b;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.8);
+}
+
+.selector-value {
+  color: var(--amber);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  text-shadow: 0 0 6px rgba(255, 194, 102, 0.5);
+}
+
+.selector-dots {
+  display: flex;
+  gap: 6px;
+  min-height: 6px;
+}
+
+.selector-dot {
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  background: #1d201d;
-  color: #b9beb6;
-  font-family: inherit;
-  font-size: 18px;
-  cursor: pointer;
+  background: #3a3f3a;
+}
+
+.selector-dot.on {
+  background: var(--amber);
+  box-shadow: 0 0 6px var(--amber);
 }
 
 .amber {
@@ -429,7 +457,6 @@ body {
 
 .key:focus-visible,
 .knob:focus-visible,
-.knob-step:focus-visible,
 .amber:focus-visible,
 .header-button:focus-visible {
   outline: 2px solid var(--amber);
@@ -483,7 +510,7 @@ body {
 /* Press look without moving the button (a moved button can lose its click in 3D) */
 .key.pressed,
 .amber.pressed,
-.knob-step.pressed {
+.knob.pressed {
   box-shadow: 0 0 0 #0b0c0b, inset 0 3px 8px rgba(0, 0, 0, 0.6);
   filter: brightness(1.3);
 }

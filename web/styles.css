@@ -1224,3 +1224,82 @@ body.wrist .sun-arrow-text {
 .map.placing {
   cursor: crosshair;
 }
+
+/* The wrist MAP tab is one short row under the map; the line-of-sight tool needs the full layout. */
+body.wrist .los-section {
+  display: none;
+}
+
+/* MEDA chart (colours validated for the dark surface: dataviz validator, both PASS) */
+
+:root {
+  --meda-air: #4a8ee0;
+  --meda-ground: #bd7f20;
+}
+
+.meda-chart {
+  width: 100%;
+  max-width: 420px;
+  touch-action: none;
+}
+
+.meda-grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.meda-axis,
+.meda-label {
+  fill: var(--text-dim);
+  font-family: var(--font);
+  font-size: 9px;
+}
+
+.meda-label {
+  fill: var(--text);
+}
+
+.meda-line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.meda-line.meda-air,
+.meda-dot.meda-air {
+  stroke: var(--meda-air);
+  fill: var(--meda-air);
+}
+
+.meda-line.meda-air {
+  fill: none;
+}
+
+.meda-line.meda-ground,
+.meda-dot.meda-ground {
+  stroke: var(--meda-ground);
+  fill: var(--meda-ground);
+}
+
+.meda-line.meda-ground {
+  fill: none;
+}
+
+.legend-line.meda-air {
+  border-top: 2px solid var(--meda-air);
+}
+
+.legend-line.meda-ground {
+  border-top: 2px solid var(--meda-ground);
+}
+
+.meda-crosshair {
+  stroke: var(--text-dim);
+  stroke-width: 1;
+}
+
+.meda-hit {
+  fill: transparent;
+  cursor: crosshair;
+}

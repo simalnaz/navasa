@@ -16,9 +16,9 @@ const DEFAULT_TERRAIN = {
   meshEverySamples: 4, // readout samples per mesh step: 4 x 4 m = a vertex every 16 m
   overlayOpacity: 0.65, // display choice: data layer over the HiRISE image
   heightScales: [1, 2, 3, 5],
-  startHeightScaleIndex: 2, // x3: the crater floor is nearly flat at true scale
+  startHeightScaleIndex: 0, // x1 true scale: the 718 m of relief (delta to crater floor) already shows
   routeLiftM: 2, // routes float this far above the ground so they are never buried
-  routeRadiusM: 5,
+  routeRadiusM: 12, // thick enough to see when the whole 10 km area is on screen
   routeStepM: 8, // routes are resampled this often so long straight legs follow the ground
   stopLabelSizeM: 160,
   stopPoleM: 120,
@@ -448,6 +448,20 @@ function flyTo(target) {
   const from = { azimuthDeg: state.view.azimuthDeg, tiltDeg: state.view.tiltDeg, distance: state.view.distance };
   const startTime = performance.now();
   return new Promise(function (resolve) {
+    let finished = false;
+    function finish() {
+      if (finished) {
+        return;
+      }
+      finished = true;
+      clearTimeout(fallback);
+      Object.assign(state.view, target);
+      state.flying = null;
+      requestRender();
+      resolve();
+    }
+    // Animation frames stop in a hidden tab; this makes sure the fly always ends.
+    const fallback = setTimeout(finish, DEFAULT_TERRAIN.flyMs + 300);
     state.flying = function (now) {
       const t = Math.min(1, (now - startTime) / DEFAULT_TERRAIN.flyMs);
       const k = easeInOut(t);
@@ -455,8 +469,7 @@ function flyTo(target) {
       state.view.tiltDeg = from.tiltDeg + (target.tiltDeg - from.tiltDeg) * k;
       state.view.distance = from.distance + (target.distance - from.distance) * k;
       if (t >= 1) {
-        state.flying = null;
-        resolve();
+        finish();
       }
     };
     requestRender();
@@ -643,6 +656,7 @@ async function open(container, scene) {
     }
   }
   state.root.hidden = false;
+  container.classList.add("showing-3d"); // hides the 2D map's controls (see terrain3d.css)
   state.labels.status.textContent = "BUILDING 3D TERRAIN…";
   state.labels.status.hidden = false;
   state.camera.aspect = Math.max(1, state.root.clientWidth) / Math.max(1, state.root.clientHeight);
@@ -674,6 +688,7 @@ async function close() {
   state.isOpen = false;
   await flyTo({ azimuthDeg: 0, tiltDeg: DEFAULT_TERRAIN.overheadTiltDeg, distance: state.view.fitDistance });
   state.root.hidden = true;
+  state.container.classList.remove("showing-3d");
 }
 
 function setLayer(layerId, layerName) {

@@ -1,0 +1,965 @@
+{
+ "sols": [
+  {
+   "sol": 15,
+   "stop_id": 1,
+   "note": "MEDA has no sol 13; on sol 15 the rover was within about 60 m of stop 1",
+   "utc_start": "2021-03-05 14:17",
+   "utc_end": "2021-03-06 14:57",
+   "air": {
+    "hourly": [
+     {
+      "hour": 0,
+      "mean_c": -67.8,
+      "minutes": 26
+     },
+     {
+      "hour": 4,
+      "mean_c": -80.1,
+      "minutes": 30
+     },
+     {
+      "hour": 12,
+      "mean_c": -33.6,
+      "minutes": 60
+     },
+     {
+      "hour": 13,
+      "mean_c": -30.8,
+      "minutes": 5
+     },
+     {
+      "hour": 14,
+      "mean_c": -28.1,
+      "minutes": 60
+     },
+     {
+      "hour": 15,
+      "mean_c": -26.7,
+      "minutes": 6
+     },
+     {
+      "hour": 16,
+      "mean_c": -27.4,
+      "minutes": 60
+     },
+     {
+      "hour": 17,
+      "mean_c": -32.7,
+      "minutes": 6
+     },
+     {
+      "hour": 18,
+      "mean_c": -45.8,
+      "minutes": 60
+     },
+     {
+      "hour": 19,
+      "mean_c": -51.8,
+      "minutes": 5
+     },
+     {
+      "hour": 20,
+      "mean_c": -53.2,
+      "minutes": 60
+     },
+     {
+      "hour": 21,
+      "mean_c": -56.8,
+      "minutes": 5
+     },
+     {
+      "hour": 22,
+      "mean_c": -62.9,
+      "minutes": 60
+     },
+     {
+      "hour": 23,
+      "mean_c": -60.2,
+      "minutes": 5
+     }
+    ],
+    "min": {
+     "c": -80.8,
+     "lmst_hours": 4.8
+    },
+    "max": {
+     "c": -21.9,
+     "lmst_hours": 14.933
+    },
+    "minutes": 448
+   },
+   "ground": {
+    "hourly": [
+     {
+      "hour": 0,
+      "mean_c": -70.3,
+      "minutes": 25
+     },
+     {
+      "hour": 4,
+      "mean_c": -75.8,
+      "minutes": 30
+     },
+     {
+      "hour": 12,
+      "mean_c": -6.5,
+      "minutes": 58
+     },
+     {
+      "hour": 13,
+      "mean_c": -4.7,
+      "minutes": 4
+     },
+     {
+      "hour": 14,
+      "mean_c": -0.2,
+      "minutes": 58
+     },
+     {
+      "hour": 15,
+      "mean_c": -3.0,
+      "minutes": 4
+     },
+     {
+      "hour": 16,
+      "mean_c": -18.2,
+      "minutes": 59
+     },
+     {
+      "hour": 17,
+      "mean_c": -25.5,
+      "minutes": 4
+     },
+     {
+      "hour": 18,
+      "mean_c": -49.7,
+      "minutes": 58
+     },
+     {
+      "hour": 19,
+      "mean_c": -56.0,
+      "minutes": 4
+     },
+     {
+      "hour": 20,
+      "mean_c": -64.2,
+      "minutes": 58
+     },
+     {
+      "hour": 21,
+      "mean_c": -66.1,
+      "minutes": 4
+     },
+     {
+      "hour": 22,
+      "mean_c": -70.4,
+      "minutes": 58
+     },
+     {
+      "hour": 23,
+      "mean_c": -71.6,
+      "minutes": 4
+     }
+    ],
+    "min": {
+     "c": -76.1,
+     "lmst_hours": 4.8
+    },
+    "max": {
+     "c": 1.5,
+     "lmst_hours": 14.033
+    },
+    "minutes": 428
+   },
+   "ground_rows_left_out": 190
+  },
+  {
+   "sol": 426,
+   "stop_id": 2,
+   "note": null,
+   "utc_start": "2022-05-01 21:28",
+   "utc_end": "2022-05-02 22:07",
+   "air": {
+    "hourly": [
+     {
+      "hour": 0,
+      "mean_c": -69.4,
+      "minutes": 21
+     },
+     {
+      "hour": 1,
+      "mean_c": -69.9,
+      "minutes": 21
+     },
+     {
+      "hour": 2,
+      "mean_c": -73.1,
+      "minutes": 21
+     },
+     {
+      "hour": 3,
+      "mean_c": -76.2,
+      "minutes": 21
+     },
+     {
+      "hour": 4,
+      "mean_c": -76.6,
+      "minutes": 21
+     },
+     {
+      "hour": 5,
+      "mean_c": -73.4,
+      "minutes": 53
+     },
+     {
+      "hour": 6,
+      "mean_c": -73.7,
+      "minutes": 21
+     },
+     {
+      "hour": 7,
+      "mean_c": -63.7,
+      "minutes": 21
+     },
+     {
+      "hour": 8,
+      "mean_c": -55.8,
+      "minutes": 21
+     },
+     {
+      "hour": 9,
+      "mean_c": -47.4,
+      "minutes": 21
+     },
+     {
+      "hour": 10,
+      "mean_c": -31.7,
+      "minutes": 21
+     },
+     {
+      "hour": 11,
+      "mean_c": -26.1,
+      "minutes": 21
+     },
+     {
+      "hour": 12,
+      "mean_c": -17.2,
+      "minutes": 21
+     },
+     {
+      "hour": 13,
+      "mean_c": -16.9,
+      "minutes": 21
+     },
+     {
+      "hour": 14,
+      "mean_c": -18.6,
+      "minutes": 21
+     },
+     {
+      "hour": 15,
+      "mean_c": -23.7,
+      "minutes": 21
+     },
+     {
+      "hour": 16,
+      "mean_c": -31.8,
+      "minutes": 21
+     },
+     {
+      "hour": 17,
+      "mean_c": -42.2,
+      "minutes": 6
+     },
+     {
+      "hour": 18,
+      "mean_c": -49.9,
+      "minutes": 21
+     },
+     {
+      "hour": 19,
+      "mean_c": -54.5,
+      "minutes": 21
+     },
+     {
+      "hour": 20,
+      "mean_c": -56.4,
+      "minutes": 21
+     },
+     {
+      "hour": 21,
+      "mean_c": -62.4,
+      "minutes": 21
+     },
+     {
+      "hour": 22,
+      "mean_c": -63.9,
+      "minutes": 21
+     },
+     {
+      "hour": 23,
+      "mean_c": -65.5,
+      "minutes": 21
+     }
+    ],
+    "min": {
+     "c": -77.8,
+     "lmst_hours": 4.05
+    },
+    "max": {
+     "c": -12.1,
+     "lmst_hours": 13.317
+    },
+    "minutes": 521
+   },
+   "ground": {
+    "hourly": [
+     {
+      "hour": 0,
+      "mean_c": -74.1,
+      "minutes": 21
+     },
+     {
+      "hour": 1,
+      "mean_c": -75.5,
+      "minutes": 21
+     },
+     {
+      "hour": 2,
+      "mean_c": -77.1,
+      "minutes": 21
+     },
+     {
+      "hour": 3,
+      "mean_c": -78.8,
+      "minutes": 21
+     },
+     {
+      "hour": 4,
+      "mean_c": -80.1,
+      "minutes": 21
+     },
+     {
+      "hour": 5,
+      "mean_c": -80.7,
+      "minutes": 53
+     },
+     {
+      "hour": 6,
+      "mean_c": -79.1,
+      "minutes": 21
+     },
+     {
+      "hour": 7,
+      "mean_c": -70.6,
+      "minutes": 21
+     },
+     {
+      "hour": 8,
+      "mean_c": -55.6,
+      "minutes": 21
+     },
+     {
+      "hour": 9,
+      "mean_c": -36.9,
+      "minutes": 21
+     },
+     {
+      "hour": 10,
+      "mean_c": -18.9,
+      "minutes": 21
+     },
+     {
+      "hour": 11,
+      "mean_c": -5.9,
+      "minutes": 21
+     },
+     {
+      "hour": 12,
+      "mean_c": 1.7,
+      "minutes": 17
+     },
+     {
+      "hour": 13,
+      "mean_c": -6.3,
+      "minutes": 6
+     },
+     {
+      "hour": 14,
+      "mean_c": -10.6,
+      "minutes": 21
+     },
+     {
+      "hour": 15,
+      "mean_c": -21.9,
+      "minutes": 21
+     },
+     {
+      "hour": 16,
+      "mean_c": -36.3,
+      "minutes": 21
+     },
+     {
+      "hour": 17,
+      "mean_c": -47.7,
+      "minutes": 6
+     },
+     {
+      "hour": 18,
+      "mean_c": -56.5,
+      "minutes": 21
+     },
+     {
+      "hour": 19,
+      "mean_c": -60.9,
+      "minutes": 21
+     },
+     {
+      "hour": 20,
+      "mean_c": -64.1,
+      "minutes": 21
+     },
+     {
+      "hour": 21,
+      "mean_c": -67.6,
+      "minutes": 21
+     },
+     {
+      "hour": 22,
+      "mean_c": -70.2,
+      "minutes": 21
+     },
+     {
+      "hour": 23,
+      "mean_c": -72.0,
+      "minutes": 21
+     }
+    ],
+    "min": {
+     "c": -80.9,
+     "lmst_hours": 5.267
+    },
+    "max": {
+     "c": 5.2,
+     "lmst_hours": 12.083
+    },
+    "minutes": 502
+   },
+   "ground_rows_left_out": 1893
+  },
+  {
+   "sol": 1162,
+   "stop_id": 3,
+   "note": null,
+   "utc_start": "2024-05-27 03:04",
+   "utc_end": "2024-05-28 03:44",
+   "air": {
+    "hourly": [
+     {
+      "hour": 0,
+      "mean_c": -74.5,
+      "minutes": 60
+     },
+     {
+      "hour": 1,
+      "mean_c": -74.7,
+      "minutes": 6
+     },
+     {
+      "hour": 2,
+      "mean_c": -76.7,
+      "minutes": 60
+     },
+     {
+      "hour": 3,
+      "mean_c": -79.9,
+      "minutes": 6
+     },
+     {
+      "hour": 4,
+      "mean_c": -77.2,
+      "minutes": 60
+     },
+     {
+      "hour": 5,
+      "mean_c": -76.2,
+      "minutes": 6
+     },
+     {
+      "hour": 6,
+      "mean_c": -79.1,
+      "minutes": 60
+     },
+     {
+      "hour": 7,
+      "mean_c": -77.3,
+      "minutes": 6
+     },
+     {
+      "hour": 8,
+      "mean_c": -67.0,
+      "minutes": 60
+     },
+     {
+      "hour": 9,
+      "mean_c": -59.9,
+      "minutes": 6
+     },
+     {
+      "hour": 10,
+      "mean_c": -42.5,
+      "minutes": 60
+     },
+     {
+      "hour": 11,
+      "mean_c": -37.7,
+      "minutes": 6
+     },
+     {
+      "hour": 12,
+      "mean_c": -32.1,
+      "minutes": 60
+     },
+     {
+      "hour": 13,
+      "mean_c": -29.9,
+      "minutes": 6
+     },
+     {
+      "hour": 14,
+      "mean_c": -24.5,
+      "minutes": 60
+     },
+     {
+      "hour": 15,
+      "mean_c": -25.6,
+      "minutes": 60
+     },
+     {
+      "hour": 16,
+      "mean_c": -33.9,
+      "minutes": 60
+     },
+     {
+      "hour": 17,
+      "mean_c": -40.0,
+      "minutes": 6
+     },
+     {
+      "hour": 18,
+      "mean_c": -56.9,
+      "minutes": 60
+     },
+     {
+      "hour": 19,
+      "mean_c": -60.7,
+      "minutes": 6
+     },
+     {
+      "hour": 20,
+      "mean_c": -63.9,
+      "minutes": 60
+     },
+     {
+      "hour": 21,
+      "mean_c": -67.1,
+      "minutes": 6
+     },
+     {
+      "hour": 22,
+      "mean_c": -72.3,
+      "minutes": 60
+     },
+     {
+      "hour": 23,
+      "mean_c": -74.7,
+      "minutes": 6
+     }
+    ],
+    "min": {
+     "c": -82.1,
+     "lmst_hours": 6.3
+    },
+    "max": {
+     "c": -19.5,
+     "lmst_hours": 14.867
+    },
+    "minutes": 846
+   },
+   "ground": {
+    "hourly": [
+     {
+      "hour": 0,
+      "mean_c": -76.9,
+      "minutes": 60
+     },
+     {
+      "hour": 1,
+      "mean_c": -77.5,
+      "minutes": 6
+     },
+     {
+      "hour": 2,
+      "mean_c": -78.7,
+      "minutes": 13
+     },
+     {
+      "hour": 3,
+      "mean_c": -78.9,
+      "minutes": 3
+     },
+     {
+      "hour": 4,
+      "mean_c": -79.6,
+      "minutes": 13
+     },
+     {
+      "hour": 5,
+      "mean_c": -79.4,
+      "minutes": 3
+     },
+     {
+      "hour": 6,
+      "mean_c": -80.0,
+      "minutes": 60
+     },
+     {
+      "hour": 7,
+      "mean_c": -78.9,
+      "minutes": 1
+     },
+     {
+      "hour": 12,
+      "mean_c": -16.0,
+      "minutes": 43
+     },
+     {
+      "hour": 13,
+      "mean_c": -15.1,
+      "minutes": 5
+     },
+     {
+      "hour": 14,
+      "mean_c": -15.9,
+      "minutes": 11
+     },
+     {
+      "hour": 16,
+      "mean_c": -44.6,
+      "minutes": 15
+     },
+     {
+      "hour": 17,
+      "mean_c": -46.9,
+      "minutes": 6
+     },
+     {
+      "hour": 18,
+      "mean_c": -60.5,
+      "minutes": 60
+     },
+     {
+      "hour": 19,
+      "mean_c": -63.6,
+      "minutes": 6
+     },
+     {
+      "hour": 20,
+      "mean_c": -69.3,
+      "minutes": 60
+     },
+     {
+      "hour": 21,
+      "mean_c": -71.1,
+      "minutes": 6
+     },
+     {
+      "hour": 22,
+      "mean_c": -75.6,
+      "minutes": 60
+     },
+     {
+      "hour": 23,
+      "mean_c": -77.0,
+      "minutes": 6
+     }
+    ],
+    "min": {
+     "c": -80.4,
+     "lmst_hours": 6.317
+    },
+    "max": {
+     "c": -5.1,
+     "lmst_hours": 12.567
+    },
+    "minutes": 437
+   },
+   "ground_rows_left_out": 21542
+  },
+  {
+   "sol": 1210,
+   "stop_id": 4,
+   "note": null,
+   "utc_start": "2024-07-15 10:44",
+   "utc_end": "2024-07-16 11:24",
+   "air": {
+    "hourly": [
+     {
+      "hour": 0,
+      "mean_c": -72.6,
+      "minutes": 6
+     },
+     {
+      "hour": 1,
+      "mean_c": -77.6,
+      "minutes": 6
+     },
+     {
+      "hour": 2,
+      "mean_c": -74.3,
+      "minutes": 6
+     },
+     {
+      "hour": 3,
+      "mean_c": -76.9,
+      "minutes": 6
+     },
+     {
+      "hour": 4,
+      "mean_c": -78.2,
+      "minutes": 6
+     },
+     {
+      "hour": 5,
+      "mean_c": -80.9,
+      "minutes": 6
+     },
+     {
+      "hour": 6,
+      "mean_c": -79.4,
+      "minutes": 6
+     },
+     {
+      "hour": 7,
+      "mean_c": -78.6,
+      "minutes": 6
+     },
+     {
+      "hour": 8,
+      "mean_c": -74.6,
+      "minutes": 6
+     },
+     {
+      "hour": 9,
+      "mean_c": -63.3,
+      "minutes": 6
+     },
+     {
+      "hour": 10,
+      "mean_c": -50.6,
+      "minutes": 6
+     },
+     {
+      "hour": 11,
+      "mean_c": -39.5,
+      "minutes": 6
+     },
+     {
+      "hour": 12,
+      "mean_c": -33.5,
+      "minutes": 6
+     },
+     {
+      "hour": 13,
+      "mean_c": -24.2,
+      "minutes": 6
+     },
+     {
+      "hour": 14,
+      "mean_c": -23.5,
+      "minutes": 6
+     },
+     {
+      "hour": 15,
+      "mean_c": -22.6,
+      "minutes": 6
+     },
+     {
+      "hour": 16,
+      "mean_c": -22.0,
+      "minutes": 6
+     },
+     {
+      "hour": 17,
+      "mean_c": -34.7,
+      "minutes": 6
+     },
+     {
+      "hour": 18,
+      "mean_c": -45.0,
+      "minutes": 6
+     },
+     {
+      "hour": 19,
+      "mean_c": -53.8,
+      "minutes": 6
+     },
+     {
+      "hour": 20,
+      "mean_c": -62.9,
+      "minutes": 6
+     },
+     {
+      "hour": 21,
+      "mean_c": -58.7,
+      "minutes": 6
+     },
+     {
+      "hour": 22,
+      "mean_c": -68.3,
+      "minutes": 6
+     },
+     {
+      "hour": 23,
+      "mean_c": -67.4,
+      "minutes": 6
+     }
+    ],
+    "min": {
+     "c": -81.4,
+     "lmst_hours": 5.05
+    },
+    "max": {
+     "c": -18.9,
+     "lmst_hours": 15.033
+    },
+    "minutes": 144
+   },
+   "ground": {
+    "hourly": [
+     {
+      "hour": 0,
+      "mean_c": -81.5,
+      "minutes": 6
+     },
+     {
+      "hour": 1,
+      "mean_c": -83.4,
+      "minutes": 6
+     },
+     {
+      "hour": 2,
+      "mean_c": -84.5,
+      "minutes": 6
+     },
+     {
+      "hour": 3,
+      "mean_c": -85.9,
+      "minutes": 6
+     },
+     {
+      "hour": 4,
+      "mean_c": -86.7,
+      "minutes": 6
+     },
+     {
+      "hour": 5,
+      "mean_c": -87.7,
+      "minutes": 6
+     },
+     {
+      "hour": 6,
+      "mean_c": -88.2,
+      "minutes": 6
+     },
+     {
+      "hour": 7,
+      "mean_c": -87.7,
+      "minutes": 6
+     },
+     {
+      "hour": 8,
+      "mean_c": -79.0,
+      "minutes": 6
+     },
+     {
+      "hour": 9,
+      "mean_c": -59.4,
+      "minutes": 6
+     },
+     {
+      "hour": 10,
+      "mean_c": -36.0,
+      "minutes": 6
+     },
+     {
+      "hour": 11,
+      "mean_c": -16.1,
+      "minutes": 6
+     },
+     {
+      "hour": 12,
+      "mean_c": -3.8,
+      "minutes": 6
+     },
+     {
+      "hour": 15,
+      "mean_c": -8.1,
+      "minutes": 6
+     },
+     {
+      "hour": 16,
+      "mean_c": -19.5,
+      "minutes": 6
+     },
+     {
+      "hour": 17,
+      "mean_c": -36.1,
+      "minutes": 6
+     },
+     {
+      "hour": 18,
+      "mean_c": -52.7,
+      "minutes": 6
+     },
+     {
+      "hour": 19,
+      "mean_c": -61.9,
+      "minutes": 6
+     },
+     {
+      "hour": 20,
+      "mean_c": -67.5,
+      "minutes": 6
+     },
+     {
+      "hour": 21,
+      "mean_c": -71.0,
+      "minutes": 6
+     },
+     {
+      "hour": 22,
+      "mean_c": -74.3,
+      "minutes": 6
+     },
+     {
+      "hour": 23,
+      "mean_c": -76.5,
+      "minutes": 6
+     }
+    ],
+    "min": {
+     "c": -88.2,
+     "lmst_hours": 6.067
+    },
+    "max": {
+     "c": -3.5,
+     "lmst_hours": 12.083
+    },
+    "minutes": 132
+   },
+   "ground_rows_left_out": 710
+  }
+ ]
+}

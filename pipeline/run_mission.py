@@ -9,7 +9,7 @@ and check the pack. Stops at the first step that fails.
 
 import sys
 
-from pipeline import build_pack, context_maps, coverage_check, crop_layers, geology, horizon, routes, terrain, thermal
+from pipeline import build_pack, context_maps, coverage_check, crop_layers, geology, horizon, meda, routes, terrain, thermal
 from pipeline.mission import MissionFileError, load_mission, mission_path_from_arguments
 
 STEPS = (
@@ -19,6 +19,7 @@ STEPS = (
     ("geology", geology.main),
     ("thermal (THEMIS)", thermal.main),
     ("terrain horizon for sun and shadow", horizon.main),
+    ("MEDA measured temperatures", meda.main),
     ("coverage check", coverage_check.main),
     ("Mars context layers (planet, region, crater)", context_maps.main),
     ("build and check the data pack", build_pack.main),

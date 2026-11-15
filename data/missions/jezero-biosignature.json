@@ -33,6 +33,49 @@
       "source": "THEMIS Night IR and Day IR controlled mosaics, 100 m/pixel, 8-bit qualitative. 2001 Mars Odyssey, NASA/JPL/Arizona State University (Christensen and others, 2004); mosaics USGS Astrogeology Science Center (Edwards and others, 2011 method), as included in USGS SIM 3464 (Sun and Stack, 2020)",
       "product_id": "nili_THEMIS_NightIR_Controlled_oct2018, nili_THEMIS_DayIR_Controlled_oct2018",
       "as_of": "2018"
+    },
+    "habitat": {
+      "label": "Perseverance landing site (Octavia E. Butler Landing)",
+      "lat": 18.44462715,
+      "lon": 77.45088572,
+      "source": "NASA Mars 2020 rover waypoints (M20_waypoints.json), first entry: sol 13, site 3, before the first drive (total distance 0 m)"
+    },
+    "surface_radius": {
+      "radius_m": 3391936.53,
+      "source": "NASA Mars 2020 rover waypoints (M20_waypoints.json), first entry (sol 13): distance from the centre of Mars at the landing site"
+    },
+    "meda": {
+      "source": "Mars 2020 MEDA (Mars Environmental Dynamics Analyzer) calibrated environmental data, NASA PDS Atmospheres Node; Rodriguez-Manfredi and others (2021), Space Science Reviews",
+      "product_id": "PDS4 bundle mars2020_meda, collection data_calibrated_env (CAL_ATS, CAL_TIRS)",
+      "url": "https://pds-atmospheres.nmsu.edu/PDS/data/PDS4/Mars2020/mars2020_meda/",
+      "as_of": "2026-08-11",
+      "sols": [
+        {
+          "sol": 15,
+          "stop_id": 1,
+          "note": "MEDA has no sol 13; on sol 15 the rover was within about 60 m of stop 1",
+          "ats_file": "meda/WE__0015___________CAL_ATS_________________P01.CSV",
+          "tirs_file": "meda/WE__0015___________CAL_TIRS________________P04.CSV"
+        },
+        {
+          "sol": 426,
+          "stop_id": 2,
+          "ats_file": "meda/WE__0426___________CAL_ATS_________________P01.CSV",
+          "tirs_file": "meda/WE__0426___________CAL_TIRS________________P01.CSV"
+        },
+        {
+          "sol": 1162,
+          "stop_id": 3,
+          "ats_file": "meda/WE__1162___________CAL_ATS_________________P01.CSV",
+          "tirs_file": "meda/WE__1162___________CAL_TIRS________________P02.CSV"
+        },
+        {
+          "sol": 1210,
+          "stop_id": 4,
+          "ats_file": "meda/WE__1210___________CAL_ATS_________________P01.CSV",
+          "tirs_file": "meda/WE__1210___________CAL_TIRS________________P02.CSV"
+        }
+      ]
     }
   },
   "stops": [

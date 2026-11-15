@@ -8,8 +8,10 @@
 
 "use strict";
 
-const APP_CACHE = "navasa-app-v6";
-const DATA_CACHE = "navasa-data";
+const APP_CACHE = "navasa-app-v9";
+// Bump the version whenever the data pack changes: data files are served from the
+// saved copy first, so an old manifest.json would otherwise never be replaced.
+const DATA_CACHE = "navasa-data-v2";
 const APP_FILES = [
   "./",
   "index.html",
@@ -20,6 +22,8 @@ const APP_FILES = [
   "sun.js",
   "comms.js",
   "los.js",
+  "gravity.js",
+  "health.js",
   "manifest.webmanifest",
   "missions.json",
   "wrist.html",
@@ -27,6 +31,9 @@ const APP_FILES = [
   "wrist.js",
   "vendor/leaflet/leaflet.js",
   "vendor/leaflet/leaflet.css",
+  "terrain3d.js",
+  "terrain3d.css",
+  "vendor/three/three.module.min.js",
 ];
 
 self.addEventListener("install", function (event) {
@@ -71,15 +78,25 @@ function dataFirstFromCache(request) {
     if (saved) {
       return saved;
     }
-    return fetch(request).then(function (response) {
-      if (response.ok) {
-        const copy = response.clone();
-        caches.open(DATA_CACHE).then(function (cache) {
-          cache.put(request, copy);
+    return fetch(request)
+      .then(function (response) {
+        if (response.ok) {
+          const copy = response.clone();
+          caches.open(DATA_CACHE).then(function (cache) {
+            cache.put(request, copy);
+          });
+        }
+        return response;
+      })
+      .catch(function () {
+        // Network failed and nothing is saved: answer with a plain 503 instead of
+        // a rejected respondWith, so the page gets a clear "not ok" response.
+        return new Response("Not saved for offline and the network failed", {
+          status: 503,
+          statusText: "Offline",
+          headers: { "Content-Type": "text/plain" },
         });
-      }
-      return response;
-    });
+      });
   });
 }
 

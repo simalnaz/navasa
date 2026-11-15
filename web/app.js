@@ -16,13 +16,16 @@ const DIVE_MS = 900; // then zoom into it
 const MAP_MAX_ZOOM = 3;
 
 const LABEL_MARK = { "NASA DATA": "■", CALCULATED: "◆" };
-const DATA_CACHE = "navasa-data"; // same name as in sw.js
+const DATA_CACHE = "navasa-data-v2"; // same name as in sw.js (bump both when the data pack changes)
 const OFFLINE_BATCH_SIZE = 6; // files saved at the same time, so saving never floods the network
+const OFFLINE_MAX_ATTEMPTS = 4; // tries per file before offline saving pauses
+const OFFLINE_RETRY_DELAY_MS = 1000; // pause before the 2nd try; doubles each try (1 s, 2 s, 4 s)
 const WRIST_MAX_WIDTH_PX = 600; // narrower screens use the wrist layout
 
 let theMap = null;
 let packBase = null; // "data/<pack>/", set when a mission starts
 let missionControls = null; // previous / next stop, set by the MISSION tab
+let layerDial = null; // the wrist knob's layer positions, set when the pack layers are added
 
 // "?view=wrist" shows only the wrist layout, for the wrist device page (wrist.html).
 const IS_EMBEDDED_WRIST = new URLSearchParams(window.location.search).get("view") === "wrist";
@@ -334,7 +337,11 @@ function addContextLayers(map, manifest) {
   }
 }
 
+// The wrist knob steps through: image only, then one data layer at a time.
+const IMAGE_ONLY_NAME = "IMAGE ONLY";
+
 function addPackLayers(map, bounds, manifest) {
+  const overlays = []; // { id, name, show, mapLayer } for each tiled data layer (not imagery)
   for (const layer of manifest.layers) {
     if (!layer.tiles || layer.context) {
       continue;
@@ -349,8 +356,105 @@ function addPackLayers(map, bounds, manifest) {
       legend = thermalLegend(layer);
     }
     const name = layer.display_name || LAYER_NAMES[layer.id] || layer.id.toUpperCase();
-    addLayerButton(map, name, tag, makeTileLayer(layer, bounds), legend, layer.kind === "imagery");
+    const isImagery = layer.kind === "imagery";
+    const mapLayer = makeTileLayer(layer, bounds);
+    const show = addLayerButton(map, name, tag, mapLayer, legend, isImagery);
+    if (!isImagery) {
+      overlays.push({ id: layer.id, name: name, show: show, mapLayer: mapLayer });
+    }
   }
+  layerDial = { map: map, overlays: overlays, position: 0 }; // 0 = image only (data layers start off)
+}
+
+// Turn the knob one step: exactly one data layer on (or none). Returns the layer now shown.
+function stepLayerDial(direction) {
+  const positionCount = layerDial.overlays.length + 1;
+  const step = direction === "next" ? 1 : -1;
+  layerDial.position = (layerDial.position + step + positionCount) % positionCount;
+  for (let index = 0; index < layerDial.overlays.length; index += 1) {
+    layerDial.overlays[index].show(layerDial.position === index + 1);
+  }
+  const shown = currentDataLayer();
+  if (window.navasaTerrain3d !== undefined) {
+    window.navasaTerrain3d.setLayer(shown.id, shown.name);
+  }
+  return shown;
+}
+
+// What the wrist page needs to draw its selector: every position's name and which one is on.
+function layerDialMessage() {
+  const names = [IMAGE_ONLY_NAME];
+  for (const overlay of layerDial.overlays) {
+    names.push(overlay.name);
+  }
+  return { type: "navasa:layer-dial", names: names, position: layerDial.position };
+}
+
+// The data layer on the map now (the last one switched on wins), for the 3D view and the knob.
+function currentDataLayer() {
+  let shown = { id: null, name: IMAGE_ONLY_NAME };
+  for (const overlay of layerDial.overlays) {
+    if (layerDial.map.hasLayer(overlay.mapLayer)) {
+      shown = { id: overlay.id, name: overlay.name };
+    }
+  }
+  return shown;
+}
+
+// ---------------------------------------------------------------- 2D / 3D
+
+// A button on the map that swaps the flat map for the 3D terrain (terrain3d.js) and back.
+function addTerrainToggle(map, manifest, stops, routes) {
+  const Toggle = L.Control.extend({
+    options: { position: "topright" },
+    onAdd: function () {
+      const button = L.DomUtil.create("button", "view-toggle");
+      button.type = "button";
+      button.textContent = "3D";
+      button.setAttribute("aria-pressed", "false");
+      button.title = "Show the terrain in 3D (HiRISE heights)";
+      L.DomEvent.disableClickPropagation(button);
+      let busy = false;
+      button.addEventListener("click", async function () {
+        const terrain = window.navasaTerrain3d;
+        if (terrain === undefined) {
+          showError("The 3D view could not start: terrain3d.js did not load (this browser may not support it).");
+          return;
+        }
+        if (busy) {
+          return; // a fly-in or fly-out is still running
+        }
+        busy = true;
+        try {
+          if (terrain.isOpen()) {
+            button.textContent = "3D";
+            button.setAttribute("aria-pressed", "false");
+            await terrain.close();
+          } else {
+            button.textContent = "2D";
+            button.setAttribute("aria-pressed", "true");
+            const shown = currentDataLayer();
+            await terrain.open(map.getContainer(), {
+              manifest: manifest,
+              stops: stops,
+              routes: routes,
+              packUrl: packUrl,
+              layerId: shown.id,
+              layerName: shown.name,
+            });
+          }
+        } catch (error) {
+          button.textContent = "3D";
+          button.setAttribute("aria-pressed", "false");
+          showError("The 3D view could not start: " + error.message);
+        } finally {
+          busy = false;
+        }
+      });
+      return button;
+    },
+  });
+  new Toggle().addTo(map);
 }
 
 // ---------------------------------------------------------------- routes and stops
@@ -1646,18 +1750,44 @@ function setOfflineStatus(text) {
   document.getElementById("status-offline").textContent = text;
 }
 
+function wait(milliseconds) {
+  return new Promise(function (resolve) {
+    setTimeout(resolve, milliseconds);
+  });
+}
+
+// Save one file. The static host sometimes drops a request or answers 503 when
+// thousands of files are asked for in a row, so a failed file is tried again
+// after a growing pause before saving gives up.
+async function saveOneFile(cache, path) {
+  const url = packUrl(path);
+  const saved = await cache.match(url);
+  if (saved) {
+    return;
+  }
+  let lastError = null;
+  for (let attempt = 0; attempt < OFFLINE_MAX_ATTEMPTS; attempt += 1) {
+    if (attempt > 0) {
+      await wait(OFFLINE_RETRY_DELAY_MS * 2 ** (attempt - 1));
+    }
+    try {
+      await cache.add(url);
+      return;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw new Error(path + " failed " + OFFLINE_MAX_ATTEMPTS + " times (" + lastError.message + "); reload to resume");
+}
+
 // Save the files of one stage in small batches. Files already saved are skipped.
 async function saveStage(cache, paths, stageName) {
   let done = 0;
   for (let start = 0; start < paths.length; start += OFFLINE_BATCH_SIZE) {
     const batch = paths.slice(start, start + OFFLINE_BATCH_SIZE);
     await Promise.all(
-      batch.map(async function (path) {
-        const url = packUrl(path);
-        const saved = await cache.match(url);
-        if (!saved) {
-          await cache.add(url);
-        }
+      batch.map(function (path) {
+        return saveOneFile(cache, path);
       })
     );
     done += batch.length;
@@ -1888,6 +2018,10 @@ async function launchMission(entry) {
   addPackLayers(created.map, created.bounds, manifest);
   addRoutes(created.map, routes);
   addStops(created.map, stops);
+  addTerrainToggle(created.map, manifest, stops, routes);
+  if (IS_EMBEDDED_WRIST && window.parent !== window) {
+    window.parent.postMessage(layerDialMessage(), window.location.origin); // the wrist selector's positions
+  }
   fillRouteTab(created.map, manifest, stops, routes);
   fillStopsTab(stops, mission, progress);
   fillDataTab(manifest);
@@ -1897,6 +2031,8 @@ async function launchMission(entry) {
   await setUpReadout(created.map, manifest);
   await setUpSunTab(created.map, manifest, routes);
   await setUpLineOfSight(created.map, manifest, stops);
+  setUpGravityCard(manifest, routes);
+  setUpHealthCard(manifest);
   saveForOffline(); // runs in the background after the app is ready
 }
 
@@ -1911,11 +2047,12 @@ function setUpDeviceCommands() {
     const command = event.data;
     if (command.type === "navasa:tab" && DEVICE_TABS.includes(command.tab)) {
       openTab(command.tab);
-    } else if (command.type === "navasa:zoom" && theMap !== null) {
-      if (command.direction === "in") {
-        theMap.zoomIn();
-      } else if (command.direction === "out") {
-        theMap.zoomOut();
+    } else if (command.type === "navasa:layer" && layerDial !== null) {
+      if (command.direction === "next" || command.direction === "previous") {
+        openTab("map"); // the map is hidden on other wrist tabs, so show it first
+        stepLayerDial(command.direction);
+        // Tell the wrist page which position is on, so the selector can point at it.
+        event.source.postMessage(layerDialMessage(), window.location.origin);
       }
     } else if (command.type === "navasa:stop" && missionControls !== null) {
       if (command.direction === "next") {

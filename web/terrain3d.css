@@ -83,6 +83,11 @@
   display: none;
 }
 
+/* In 3D the flat map's controls (zoom, scale bar, cursor readout, sun arrow) don't apply: only the 2D/3D button stays. */
+.showing-3d .leaflet-control:not(.view-toggle) {
+  display: none;
+}
+
 /* The 2D/3D button on the map (a Leaflet control). */
 .view-toggle {
   min-width: 44px;

@@ -157,10 +157,15 @@ const MarsTime = (function () {
     };
   }
 
-  function gravity(latitude, heightM) {
+  function ellipsoidRadius(latitude) {
     const a = GRAVITY.equatorialRadius;
     const b = GRAVITY.polarRadius;
-    const radius = (a * b) / Math.sqrt((b * cos(latitude)) ** 2 + (a * sin(latitude)) ** 2) + heightM;
+    return (a * b) / Math.sqrt((b * cos(latitude)) ** 2 + (a * sin(latitude)) ** 2);
+  }
+
+  function gravity(latitude, heightM) {
+    const a = GRAVITY.equatorialRadius;
+    const radius = ellipsoidRadius(latitude) + heightM;
     const pointMass = GRAVITY.gm / radius ** 2;
     const flattening = 1 - 1.5 * GRAVITY.j2 * (a / radius) ** 2 * (3 * sin(latitude) ** 2 - 1);
     const omega = (2 * Math.PI) / GRAVITY.siderealRotationS;
@@ -246,6 +251,7 @@ const MarsTime = (function () {
     earthXyz: earthXyz,
     marsXyz: marsXyz,
     gravity: gravity,
+    ellipsoidRadius: ellipsoidRadius,
     formatHours: formatHours,
     marsSolDate: marsSolDate,
     m20Sol: m20Sol,

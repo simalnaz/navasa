@@ -10,7 +10,7 @@
 
 const SCENE_WIDTH = 1700;
 const SCENE_HEIGHT = 760;
-const KNOB_STEP_DEG = 30;
+const SELECTOR_SWEEP_DEG = 240; // the knob's pointer sweeps -120° .. +120° across the layer positions
 const MAX_TURN_DEG = 40;
 const DRAG_DEG_PER_PX = 0.25;
 
@@ -24,7 +24,6 @@ const view = {
   userTurned: false,
   tilted: false,
 };
-let knobAngle = 0;
 let demoRunning = true;
 let demoTimer = null;
 
@@ -48,13 +47,41 @@ function pressKey(tab) {
   sendToScreen({ type: "navasa:tab", tab: tab });
 }
 
-// The knob steps through the map layers; the app opens the MAP tab and answers with the layer name.
+// The knob is a layer selector. The app opens the MAP tab, switches the layer and answers
+// with the positions, so the pointer, name and dots always show what the app really shows.
 function turnKnob(direction) {
-  knobAngle += direction === "next" ? KNOB_STEP_DEG : -KNOB_STEP_DEG;
-  // Only the dial inside turns; the button itself never moves, so it keeps its clicks in 3D.
-  document.getElementById("knob-dial").style.transform = "rotate(" + knobAngle + "deg)";
   markActiveKey("map");
   sendToScreen({ type: "navasa:layer", direction: direction });
+}
+
+function isLayerDialMessage(message) {
+  if (typeof message !== "object" || message === null || message.type !== "navasa:layer-dial") {
+    return false;
+  }
+  if (!Array.isArray(message.names) || message.names.length === 0) {
+    return false;
+  }
+  for (const name of message.names) {
+    if (typeof name !== "string") {
+      return false;
+    }
+  }
+  return Number.isInteger(message.position) && message.position >= 0 && message.position < message.names.length;
+}
+
+function showSelector(names, position) {
+  const steps = Math.max(1, names.length - 1);
+  const angle = -SELECTOR_SWEEP_DEG / 2 + (SELECTOR_SWEEP_DEG * position) / steps;
+  // Only the dial inside turns; the button itself never moves, so it keeps its clicks in 3D.
+  document.getElementById("knob-dial").style.transform = "rotate(" + angle + "deg)";
+  document.getElementById("knob-label").textContent = names[position]; // textContent: never parsed as HTML
+  const dots = document.getElementById("selector-dots");
+  dots.replaceChildren();
+  for (let index = 0; index < names.length; index += 1) {
+    const dot = document.createElement("span");
+    dot.className = index === position ? "selector-dot on" : "selector-dot";
+    dots.appendChild(dot);
+  }
 }
 
 function listenToScreen() {
@@ -63,9 +90,8 @@ function listenToScreen() {
     if (event.origin !== window.location.origin || event.source !== frame.contentWindow) {
       return;
     }
-    const message = event.data;
-    if (typeof message === "object" && message !== null && message.type === "navasa:layer-shown" && typeof message.name === "string") {
-      document.getElementById("knob-label").textContent = message.name; // textContent: never parsed as HTML
+    if (isLayerDialMessage(event.data)) {
+      showSelector(event.data.names, event.data.position);
     }
   });
 }
@@ -277,10 +303,21 @@ function start() {
       handler();
     };
   }
-  document.getElementById("layer-next").addEventListener("click", viewerAction(function () { turnKnob("next"); }));
-  document.getElementById("layer-previous").addEventListener("click", viewerAction(function () { turnKnob("previous"); }));
   const knob = document.getElementById("layer-knob");
   knob.addEventListener("click", viewerAction(function () { turnKnob("next"); }));
+  knob.addEventListener("keydown", function (event) {
+    let direction = null;
+    if (event.key === "ArrowRight" || event.key === "ArrowUp") {
+      direction = "next";
+    } else if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
+      direction = "previous";
+    }
+    if (direction !== null) {
+      event.preventDefault();
+      stopDemo();
+      turnKnob(direction);
+    }
+  });
   knob.addEventListener(
     "wheel",
     function (event) {

@@ -13,7 +13,8 @@ manifest.json
     id, version      pack name and version, e.g. "jezero_v1", "1.0.0"
     created          date the pack was built, "YYYY-MM-DD"
     site             name, bounds_px [col_min, row_min, col_max, row_max],
-                     bounds_lonlat [west, south, east, north]
+                     bounds_lonlat [west, south, east, north], optional
+                     surface_radius {radius_m, source}: distance from Mars' centre (local gravity)
     grid             width, height (pixels), metres_per_pixel (north-south), optional
                      east_scale (ground metres per grid metre east-west, 0-1]
     layers           list of layers (below)
@@ -30,6 +31,10 @@ layers (for example the routes).
 Optional manifest field "readouts": [{"id", "file", "units", "base", "step",
 "sample_every_px", "no_data_code", "label", "source"}]: images holding cursor
 readout values as 16-bit codes (value = base + code * step).
+Optional manifest field "habitat": {"label", "position": [col, row], "source"}: a fixed
+radio end point (for example a landing site) for the line-of-sight check.
+Optional manifest field "meda": {"file", "source", "product_id", "as_of", "label",
+"method"}: measured temperatures per sol (pipeline/meda.py).
 Optional manifest field "horizon": terrain horizon angles for sun and shadow
 (pipeline/horizon.py): cell_px, width, height, directions_deg, angle_step_deg,
 no_data_code, method, label, source and files [{"file", "directions_deg"}]:
@@ -508,6 +513,20 @@ def validate_pack(pack_dir):
     check_layers(pack_dir, manifest["layers"], errors)
     if "horizon" in manifest:
         check_horizon(pack_dir, manifest["horizon"], grid, errors)
+    if "meda" in manifest:
+        meda = manifest["meda"]
+        if not isinstance(meda, dict) or not check_required_fields(meda, ("file", "source", "product_id", "as_of", "label", "method"), "manifest meda", errors):
+            pass
+        else:
+            check_pack_file(pack_dir, meda["file"], "manifest meda", errors)
+            if meda["label"] != "NASA DATA":
+                errors.append("manifest meda: label must be NASA DATA")
+    if "habitat" in manifest:
+        habitat = manifest["habitat"]
+        if not isinstance(habitat, dict) or not is_text(habitat.get("label")) or not is_text(habitat.get("source")):
+            errors.append("manifest habitat: needs label and source text")
+        else:
+            check_position(habitat.get("position"), grid, "manifest habitat", errors)
 
     stop_ids = set()
     stops = load_json_file(os.path.join(pack_dir, STOPS_FILE_NAME), "stops", list, errors)

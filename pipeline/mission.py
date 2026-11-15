@@ -7,7 +7,12 @@ data/missions/<mission>.json
     site                             name, the raw files (in data/raw/) and their credits:
                                        dtm_file, image_file, geology_file, unit_descriptions_file,
                                        image_source, image_product_id, dtm_source, dtm_product_id,
-                                       geology_source, geology_product_id, as_of
+                                       geology_source, geology_product_id, as_of;
+                                     optional thermal {...}, habitat {label, lat, lon, source} and
+                                     surface_radius {radius_m, source} (for local gravity) and
+                                     meda {source, product_id, url, as_of, sols: [{sol, stop_id,
+                                     note, ats_file, tirs_file}]} (measured temperatures)
+                                     (the habitat is the fixed end of the radio line-of-sight check)
     stops                            the stops in walking order: id, label, lat, lon,
                                      position_source, question, photos
 
@@ -116,6 +121,32 @@ def check_mission(mission, project_root=PROJECT_ROOT, photos_dir=PHOTOS_DIR):
         for field_name in ("night_file", "day_file", "source", "product_id", "as_of"):
             if not isinstance(thermal, dict) or not is_text(thermal.get(field_name)):
                 problems.append(f"site thermal {field_name!r} must be text")
+    meda = site.get("meda") if isinstance(site, dict) else None
+    if meda is not None:
+        if not isinstance(meda, dict) or not all(is_text(meda.get(key)) for key in ("source", "product_id", "as_of")):
+            problems.append("site meda needs 'source', 'product_id' and 'as_of' text")
+        elif not isinstance(meda.get("sols"), list) or len(meda["sols"]) == 0:
+            problems.append("site meda needs a non-empty 'sols' list")
+        else:
+            for index, entry in enumerate(meda["sols"]):
+                if (
+                    not isinstance(entry, dict)
+                    or not isinstance(entry.get("sol"), int)
+                    or not is_text(entry.get("ats_file"))
+                    or not is_text(entry.get("tirs_file"))
+                ):
+                    problems.append(f"site meda sol {index}: needs integer 'sol', 'ats_file' and 'tirs_file'")
+                elif not os.path.isfile(os.path.join(RAW_DIR, entry["ats_file"])) or not os.path.isfile(os.path.join(RAW_DIR, entry["tirs_file"])):
+                    problems.append(f"site meda sol {entry['sol']}: file not found in data/raw")
+    surface = site.get("surface_radius") if isinstance(site, dict) else None
+    if surface is not None and (not isinstance(surface, dict) or not isinstance(surface.get("radius_m"), (int, float)) or not is_text(surface.get("source"))):
+        problems.append("site surface_radius needs numeric 'radius_m' and 'source' text")
+    habitat = site.get("habitat") if isinstance(site, dict) else None
+    if habitat is not None:
+        if not isinstance(habitat, dict) or not is_text(habitat.get("label")) or not is_text(habitat.get("source")):
+            problems.append("site habitat needs 'label' and 'source' text")
+        elif not all(isinstance(habitat.get(key), (int, float)) for key in ("lat", "lon")):
+            problems.append("site habitat needs numeric 'lat' and 'lon'")
     try:
         validate_stops(mission["stops"], project_root, photos_dir)
     except StopsFileError as error:

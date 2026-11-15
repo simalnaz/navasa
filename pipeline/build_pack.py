@@ -385,6 +385,8 @@ def write_offline_list(pack_dir, manifest, pack_stops, legs):
     core = ["manifest.json", "mission.json", "stops.json", "routes.json"]
     for readout in manifest["readouts"]:
         core.append(readout["file"])
+    if "meda" in manifest:
+        core.append(manifest["meda"]["file"])
     if "horizon" in manifest:
         for horizon_file in manifest["horizon"]["files"]:
             core.append(horizon_file["file"])
@@ -680,6 +682,31 @@ def main(mission_path):
         thermal_map_layers, thermal_readouts = thermal_layers(pack_dir, mission["site"]["thermal"], paths.work_dir)
         manifest["layers"] = manifest["layers"] + thermal_map_layers
         manifest["readouts"] = manifest["readouts"] + thermal_readouts
+    meda_summary = os.path.join(paths.work_dir, "meda.json")
+    if mission["site"].get("meda") is not None and os.path.isfile(meda_summary):
+        shutil.copyfile(meda_summary, os.path.join(pack_dir, "meda.json"))
+        meda_site = mission["site"]["meda"]
+        manifest["meda"] = {
+            "file": "meda.json",
+            "source": meda_site["source"],
+            "product_id": meda_site["product_id"],
+            "url": meda_site.get("url"),
+            "as_of": meda_site["as_of"],
+            "label": "NASA DATA",
+            "method": (
+                "Air: mean of the three mast air temperature sensors (ATS 1-3). Ground: TIRS ground brightness "
+                "temperature, rows left out when a quality flag says the rover moved, tilted 20 degrees or more, "
+                "shaded the spot or had a wheel in view. Median per Mars minute, then hourly means (LMST) and "
+                "the lowest / highest minute."
+            ),
+        }
+    if mission["site"].get("surface_radius") is not None:
+        manifest["site"]["surface_radius"] = mission["site"]["surface_radius"]
+    habitat = mission["site"].get("habitat")
+    if habitat is not None:
+        with rasterio.open(paths.cropped_dtm) as dtm:
+            col, row = lonlat_to_pixel(dtm, habitat["lon"], habitat["lat"])
+        manifest["habitat"] = {"label": habitat["label"], "position": [int(col), int(row)], "source": habitat["source"]}
     horizon = horizon_entry(pack_dir, paths.work_dir, mission["site"]["dtm_source"])
     if horizon is not None:
         manifest["horizon"] = horizon

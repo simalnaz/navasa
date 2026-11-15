@@ -94,8 +94,9 @@ async function setUpLineOfSight(map, manifest, stops) {
   const habitat = manifest.habitat || null;
 
   const tab = document.getElementById("tab-map");
-  tab.appendChild(makeElement("h2", "section-title", "> RADIO LINE OF SIGHT · ◆ CALCULATED"));
-  const card = makeElement("div", "card");
+  // los-section: hidden on the wrist screen, where the MAP tab row must stay small (see styles.css).
+  tab.appendChild(makeElement("h2", "section-title los-section", "> RADIO LINE OF SIGHT · ◆ CALCULATED"));
+  const card = makeElement("div", "card los-section");
   tab.appendChild(card);
 
   card.appendChild(makeElement("h3", "card-title", "ANTENNA HEIGHTS · YOUR VALUES"));
@@ -226,6 +227,9 @@ async function setUpLineOfSight(map, manifest, stops) {
 
   function link(name, from, to, antennaFrom, antennaTo) {
     const sampled = LineOfSight.samplePoints(from, to, eastScale, metresPerPixel, LOS_SAMPLE_STEP_M);
+    if (sampled.lengthM < LOS_SAMPLE_STEP_M) {
+      return [name, "SAME SPOT (closer than " + LOS_SAMPLE_STEP_M + " m)", (sampled.lengthM / 1000).toFixed(2) + " km", "—", "—"];
+    }
     const heights = sampled.points.map(heightAt);
     const result = LineOfSight.check(heights, sampled.lengthM, antennaFrom, antennaTo);
     const fromLatLng = gridToLatLng(from[0], from[1]);
