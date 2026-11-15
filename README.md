@@ -9,7 +9,7 @@ On Mars, we are the aliens.
 - **Live app:** https://simalnaz.github.io/navasa/
 - **First mission:** *Follow the water to a potential biosignature* — four stops in Jezero Crater, from the crater floor to the Bright Angel area.
 
-NAVASA is an entry to the NASA Space Apps Challenge 2026. It is not affiliated with or endorsed by NASA.
+**Built in 48 hours** for the **NASA Space Apps Challenge 2026** hackathon (14–15 November 2026). It is not affiliated with or endorsed by NASA.
 
 ---
 
@@ -18,7 +18,7 @@ NAVASA is an entry to the NASA Space Apps Challenge 2026. It is not affiliated w
 | Tab | What it shows |
 |---|---|
 | **Boot screen** | A rotating Mars globe (orbit view) with each mission site; pick a mission and the globe turns to its site and dives in |
-| **MAP** | HiRISE 25 cm image, slope (5° bands) and rock units; elevation, slope and unit under the cursor or a tap; **radio line of sight** astronaut ↔ astronaut and astronaut ↔ habitat (landing site), with antenna heights you type (empty until you do) |
+| **MAP** | HiRISE 25 cm image, slope (5° bands), rock units, THEMIS night and day infrared (qualitative: brighter = warmer) and terrain shadows; elevation, slope, unit and infrared under the cursor or a tap; **3D terrain view** (3D button: the height model with the map layer on it, routes and stops, height ×1 true scale or ×2/3/5 as a labelled display choice); **radio line of sight** astronaut ↔ astronaut and astronaut ↔ habitat (landing site), with antenna heights you type (empty until you do) |
 | **ROUTE** | For each leg, shortest vs gentlest route: distance, climb, descent, steepest point (and where it is); **gravity panel**: site gravity, and with your mass (typed, empty until you do) your weight on Mars vs Earth and the work against gravity per leg |
 | **STOPS** | Rock unit and its description, Perseverance photos (two cameras), the mission question, "mark stop as reached" |
 | **SKY** | Mars clock (Perseverance sol, LMST, LTST, season Ls), sunrise and sunset, time to sunset; choose a sol and time or play the sol; terrain shadows on the map; share of each route in shadow; sun arrow on the map; **Earth link**: one-way and round-trip light time, distance, Sun–Earth–Mars angle, a to-scale Sun–Earth–Mars diagram and a **SEND** message simulation (real time or 60× faster) |
@@ -27,9 +27,9 @@ NAVASA is an entry to the NASA Space Apps Challenge 2026. It is not affiliated w
 
 Layouts: wide (laptop or habitat screen), tablet (tab bar at the bottom) and **wrist view** (phones, or the WRIST VIEW button): a compact navigator for a suit sleeve.
 
-**Wrist unit concept** (`wrist.html`, linked from the boot screen): the app running on a wrist unit drawn on an EVA suit sleeve. Its keys switch tabs, the knob zooms the map and the amber switches step through the stops.
+**Wrist unit concept** (`wrist.html`, linked from the boot screen): the app running on a wrist unit drawn on an EVA suit sleeve. Its keys switch tabs, the knob switches map layers (click, or drag to turn it) and the amber switches step through the stops.
 
-**Offline:** after the first visit the app saves itself and the mission data in two stages: the whole area at coarse zoom levels plus all data files (about 17 MB), then full detail within 250 m of every route and stop (about 29 MB). The status bar shows the progress and then `OFFLINE READY`. Anything else you look at while online is kept too.
+**Offline:** after the first visit the app saves itself and the mission data in two stages: the whole area at coarse zoom levels plus all data files (about 25 MB), then full detail within 250 m of every route and stop (about 29 MB). The status bar shows the progress and then `OFFLINE READY`. Anything else you look at while online is kept too.
 
 ---
 
@@ -40,6 +40,7 @@ Layouts: wide (laptop or habitat screen), tablet (tab bar at the bottom) and **w
 | HiRISE orthomosaic, 25 cm/pixel, Mars 2020 Terrain Relative Navigation — Fergason and others, 2020, USGS, [doi:10.5066/P9QJDP48](https://doi.org/10.5066/P9QJDP48) | MRO, NASA/JPL-Caltech/University of Arizona; mosaic USGS Astrogeology | Base map | NASA DATA |
 | HiRISE DTM mosaic, ~1 m/pixel, Mars 2020 Terrain Relative Navigation — Fergason and others, 2020, USGS, [doi:10.5066/P9REJ9JN](https://doi.org/10.5066/P9REJ9JN) | MRO, NASA/JPL-Caltech/University of Arizona; mosaic USGS Astrogeology | Elevation, slope, routes | NASA DATA / CALCULATED |
 | Geologic Map of Jezero Crater and the Nili Planum Region, Mars — Sun, V.Z., and Stack, K.M., 2020, [USGS SIM 3464](https://pubs.usgs.gov/publication/sim3464) | NASA-funded USGS map | Rock units, unit descriptions | NASA DATA |
+| THEMIS Night IR and Day IR controlled mosaics, 100 m/pixel, 8-bit qualitative (products `nili_THEMIS_NightIR_Controlled_oct2018`, `nili_THEMIS_DayIR_Controlled_oct2018`), as included in the USGS SIM 3464 database | 2001 Mars Odyssey, NASA/JPL/Arizona State University (Christensen and others, 2004); mosaics USGS Astrogeology | Night / day infrared layers and readout | NASA DATA |
 | Perseverance raw images (Navcam, Mastcam-Z), [mars.nasa.gov](https://mars.nasa.gov/mars2020/multimedia/raw-images/) | Perseverance, NASA/JPL-Caltech | Stop photos | NASA DATA |
 | Mars Viking MDIM 2.1 Colorized Global Mosaic, 232 m/pixel — [USGS Astrogeology](https://planetarymaps.usgs.gov/mosaic/Mars_Viking_MDIM21_ClrMosaic_global_232m.tif) (the same layer NASA's Mars Trek shows) | Viking Orbiter (NASA); mosaic USGS Astrogeology | Orbit-view globe (2,048 × 1,024 copy) | NASA DATA |
 | Mars 2020 MEDA calibrated environmental data (CAL_ATS, CAL_TIRS) for sols 15, 426, 1162 and 1210 — [NASA PDS Atmospheres Node](https://pds-atmospheres.nmsu.edu/PDS/data/PDS4/Mars2020/mars2020_meda/), release 2026-08-11 | Perseverance, NASA/JPL-Caltech; MEDA (Rodriguez-Manfredi and others, 2021) | Measured air and ground temperature at the stops | NASA DATA |
@@ -47,7 +48,7 @@ Layouts: wide (laptop or habitat screen), tablet (tab bar at the bottom) and **w
 
 The mission objective's fact ("Perseverance found a potential biosignature") comes from NASA/JPL, 10 September 2025, [*NASA Says Mars Rover Discovered Potential Biosignature Last Year*](https://www.jpl.nasa.gov/news/nasa-says-mars-rover-discovered-potential-biosignature-last-year/), and Hurowitz, J.A., and others, 2025, *Redox-driven mineral and organic associations in Jezero Crater, Mars*, Nature.
 
-**Credits:** NASA/JPL-Caltech/University of Arizona (HiRISE) · USGS Astrogeology Science Center (Mars 2020 TRN mosaics; Viking MDIM 2.1 colour mosaic) · NASA Viking Orbiter · Sun, V.Z., and Stack, K.M., 2020, USGS SIM 3464 · NASA/JPL-Caltech (Perseverance raw images and Mars 2020 rover waypoints). Map library: [Leaflet](https://leafletjs.com) 1.9.4 (BSD 2-Clause, `web/vendor/leaflet/LICENSE`).
+**Credits:** NASA/JPL-Caltech/University of Arizona (HiRISE) · USGS Astrogeology Science Center (Mars 2020 TRN mosaics; Viking MDIM 2.1 colour mosaic; THEMIS mosaics) · NASA Viking Orbiter · NASA/JPL/Arizona State University (2001 Mars Odyssey THEMIS) · Sun, V.Z., and Stack, K.M., 2020, USGS SIM 3464 · NASA/JPL-Caltech (Perseverance raw images, MEDA data and Mars 2020 rover waypoints). Map library: [Leaflet](https://leafletjs.com) 1.9.4 (BSD 2-Clause, `web/vendor/leaflet/LICENSE`). 3D library: [Three.js](https://threejs.org) r160 (MIT, `web/vendor/three/LICENSE`).
 
 ---
 
@@ -64,6 +65,7 @@ The mission objective's fact ("Perseverance found a potential biosignature") com
 | Ground slope at a stop | Slope of the 1 m cell at the stop position. |
 | Bearing, straight distance | From the two stops' grid positions; bearing in degrees clockwise from map north. |
 | Cursor readout | Value of the nearest 1 m cell, sampled every 4 m. |
+| 3D terrain | The elevation readout meshed every 16 m with the current map layer draped on it; ×1 is true scale, ×2/3/5 is a display choice and is labelled as one. |
 | Mars clock, sun position, sunrise / sunset | NASA GISS [Mars24 algorithm](https://www.giss.nasa.gov/tools/mars24/help/algorithm.html) (updated 2025-01-07); sunrise / sunset = sun centre at 0° over a flat horizon, no atmosphere. |
 | Perseverance sol | Sol 0 = landing sol (2021-02-18 20:55 UTC), counted in local mean solar time at the landing site; tested against the sols in NASA raw-image IDs. |
 | Radio line of sight | Straight line between the antenna tips (your heights) vs the terrain every 4 m (elevation readout) plus Mars curvature d(D−d)/2R; first blocking point and least clearance. No Fresnel zone, diffraction, refraction or radio range. Habitat = Perseverance landing site from the first NASA M20 waypoint (sol 13, before the first drive). |
@@ -131,7 +133,8 @@ pipeline/   Python steps: mission, stops, crop_layers, terrain, routes, geology,
             run_mission, make_globe, context_maps, mars_time
 tests/      unittest
 data/       missions/ (mission files), unit_descriptions.json; raw/ and work/ are not committed
-web/        the app: index.html, styles.css, app.js, globe.js, marstime.js, sun.js, comms.js, los.js, gravity.js, health.js, editor.js, sw.js, wrist.html/css/js, vendor/leaflet,
+web/        the app: index.html, styles.css, app.js, globe.js, marstime.js, sun.js, comms.js, los.js, gravity.js, health.js, editor.js,
+            terrain3d.js/css, sw.js, wrist.html/css/js, vendor/leaflet, vendor/three,
             missions.json, data/<pack>/, data/globe/
 .github/    workflow that publishes web/ to GitHub Pages
 ```
