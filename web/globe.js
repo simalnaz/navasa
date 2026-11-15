@@ -11,6 +11,7 @@ const NavasaGlobe = (function () {
   const DEGREES = Math.PI / 180;
   const LIGHT = normalise([-0.45, 0.35, 0.82]); // display choice
   const SPIN_DEG_PER_SECOND = 6;
+  const FRAME_MS = 40;
 
   function normalise(vector) {
     const length = Math.hypot(vector[0], vector[1], vector[2]);
@@ -63,6 +64,31 @@ const NavasaGlobe = (function () {
     let lastTime = null;
     let animation = null; // {fromLon, fromLat, toLon, toLat, start, duration, resolve}
 
+    // Per pixel, computed once: where it sits on the sphere and how lit it is.
+    // Only latitude/longitude change while the globe turns.
+    const pixels = [];
+    for (let row = 0; row < size; row++) {
+      const y = (size / 2 - row) / radius;
+      for (let col = 0; col < size; col++) {
+        const x = (col - size / 2) / radius;
+        const rho = Math.hypot(x, y);
+        if (rho > 1 || rho === 0) {
+          continue;
+        }
+        const z = Math.sqrt(1 - rho * rho);
+        const c = Math.asin(rho);
+        pixels.push({
+          index: (row * size + col) * 4,
+          x: x,
+          y: y,
+          rho: rho,
+          sinC: Math.sin(c),
+          cosC: Math.cos(c),
+          light: 0.25 + 0.75 * Math.max(0, x * LIGHT[0] + y * LIGHT[1] + z * LIGHT[2]),
+        });
+      }
+    }
+
     function drawSphere() {
       const data = frame.data;
       const phi0 = centreLat * DEGREES;
@@ -70,40 +96,21 @@ const NavasaGlobe = (function () {
       const cosPhi0 = Math.cos(phi0);
       const width = texture.width;
       const height = texture.height;
-      for (let row = 0; row < size; row++) {
-        const y = (size / 2 - row) / radius;
-        for (let col = 0; col < size; col++) {
-          const x = (col - size / 2) / radius;
-          const index = (row * size + col) * 4;
-          const rho = Math.hypot(x, y);
-          if (rho > 1) {
-            data[index + 3] = 0;
-            continue;
-          }
-          const z = Math.sqrt(1 - rho * rho);
-          let lat;
-          let lon;
-          if (rho === 0) {
-            lat = centreLat;
-            lon = centreLon;
-          } else {
-            const c = Math.asin(rho);
-            const sinC = Math.sin(c);
-            const cosC = Math.cos(c);
-            lat = Math.asin(cosC * sinPhi0 + (y * sinC * cosPhi0) / rho) / DEGREES;
-            lon = centreLon + Math.atan2(x * sinC, rho * cosPhi0 * cosC - y * sinPhi0 * sinC) / DEGREES;
-          }
-          let u = Math.floor(((((lon + 180) % 360) + 360) % 360) / 360 * width);
-          let v = Math.floor(((90 - lat) / 180) * height);
-          u = Math.min(width - 1, Math.max(0, u));
-          v = Math.min(height - 1, Math.max(0, v));
-          const source = (v * width + u) * 4;
-          const light = 0.25 + 0.75 * Math.max(0, x * LIGHT[0] + y * LIGHT[1] + z * LIGHT[2]);
-          data[index] = texture.data[source] * light;
-          data[index + 1] = texture.data[source + 1] * light;
-          data[index + 2] = texture.data[source + 2] * light;
-          data[index + 3] = 255;
-        }
+      const source = texture.data;
+      for (let n = 0; n < pixels.length; n++) {
+        const pixel = pixels[n];
+        const lat = Math.asin(pixel.cosC * sinPhi0 + (pixel.y * pixel.sinC * cosPhi0) / pixel.rho) / DEGREES;
+        const lon = centreLon + Math.atan2(pixel.x * pixel.sinC, pixel.rho * cosPhi0 * pixel.cosC - pixel.y * sinPhi0 * pixel.sinC) / DEGREES;
+        let u = Math.floor(((((lon + 180) % 360) + 360) % 360) / 360 * width);
+        let v = Math.floor(((90 - lat) / 180) * height);
+        u = Math.min(width - 1, Math.max(0, u));
+        v = Math.min(height - 1, Math.max(0, v));
+        const from = (v * width + u) * 4;
+        const to = pixel.index;
+        data[to] = source[from] * pixel.light;
+        data[to + 1] = source[from + 1] * pixel.light;
+        data[to + 2] = source[from + 2] * pixel.light;
+        data[to + 3] = 255;
       }
       context.putImageData(frame, 0, 0);
     }
@@ -138,7 +145,9 @@ const NavasaGlobe = (function () {
         context.arc(screenX, screenY, 3, 0, 2 * Math.PI);
         context.fill();
         context.font = "bold 12px ui-monospace, Menlo, monospace";
-        context.fillText(site.label, screenX + 14, screenY + 4);
+        const labelWidth = context.measureText(site.label).width;
+        const labelX = screenX + 14 + labelWidth > size ? screenX - 14 - labelWidth : screenX + 14;
+        context.fillText(site.label, labelX, screenY + 4);
       }
     }
 
@@ -147,6 +156,10 @@ const NavasaGlobe = (function () {
     }
 
     function tick(time) {
+      if (lastTime !== null && time - lastTime < FRAME_MS) {
+        window.requestAnimationFrame(tick); // about 24 frames per second is enough for a slow turn
+        return;
+      }
       if (lastTime === null) {
         lastTime = time;
       }

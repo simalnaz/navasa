@@ -1,4 +1,3 @@
-import json
 import math
 import os
 import tempfile
@@ -8,7 +7,7 @@ import numpy
 import rasterio
 from rasterio.transform import from_origin
 
-from pipeline.stops import StopsFileError, load_stops, lonlat_to_pixel
+from pipeline.stops import StopsFileError, lonlat_to_pixel, validate_stops
 
 TEST_SPHERE_RADIUS_M = 1000.0
 
@@ -42,9 +41,7 @@ class LoadStopsTest(unittest.TestCase):
         self.temp_dir.cleanup()
 
     def load(self):
-        with open(self.stops_path, "w", encoding="utf-8") as stops_file:
-            json.dump(self.stops, stops_file)
-        return load_stops(self.stops_path, self.project_root, self.photos_dir)
+        return validate_stops(self.stops, self.project_root, self.photos_dir)
 
     def assert_rejected(self, expected_text):
         with self.assertRaises(StopsFileError) as raised:

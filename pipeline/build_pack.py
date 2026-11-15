@@ -1,7 +1,8 @@
 """Write the data pack the web app reads, then check it with validate_pack.
 
-Run after crop_layers.py, terrain.py, routes.py and geology.py. Writes into
-web/data/jezero_v1/:
+Run after crop_layers.py, terrain.py, routes.py and geology.py (or use
+run_mission.py). Writes into web/data/<pack>/:
+    mission.json        the mission: name, status, objective and its sources, stop questions
     manifest.json       site, grid, layers (with sources and methods), methods of the routes
     stops.json          stops with grid position, ground slope, rock unit and photos
     routes.json         shortest and gentlest route per leg (copied from data/work)
@@ -24,7 +25,9 @@ when zoomed in further.
 The 25 cm tiles were written by crop_layers.py.
 
 Usage:
-    python -m pipeline.build_pack
+    python -m pipeline.build_pack [data/missions/<mission>.json]
+
+Also rewrites web/missions.json, the list of all built missions the app offers.
 """
 
 import datetime
@@ -40,16 +43,13 @@ import rasterio
 from matplotlib import colormaps
 from PIL import Image
 
-from pipeline.crop_layers import CROPPED_DTM_PATH, GRID_PATH, PACK_DIR, PROJECT_ROOT
-from pipeline.geology import GEOLOGY_JSON_PATH, LOOKUP_PATH, OVERLAY_PATH
+from pipeline.mission import MissionPaths, load_mission, mission_path_from_arguments
 from pipeline.pack_format import validate_pack
-from pipeline.routes import ROUTES_PATH
-from pipeline.stops import load_stops, lonlat_to_pixel
-from pipeline.terrain import SLOPE_PATH, read_heights
+from pipeline.stops import PROJECT_ROOT, lonlat_to_pixel
+from pipeline.terrain import read_heights
 
-PACK_ID = "jezero_v1"
-PACK_VERSION = "1.0.0"
-SITE_NAME = "Jezero Crater"
+WEB_DIR = os.path.join(PROJECT_ROOT, "web")
+MISSIONS_INDEX_PATH = os.path.join(WEB_DIR, "missions.json")
 PHOTO_CREDIT = "NASA/JPL-Caltech"
 
 # Display choices only (no meaning of safe or unsafe).
@@ -62,20 +62,6 @@ TILE_SIZE = 256
 # Offline saving (choices): coarse zooms of the whole area, full detail only near the routes.
 DEFAULT_OFFLINE = {"corridor_m": 250, "core_max_zoom": {"hirise": -1, "slope": -2, "geology": -1}, "sample_step_m": 10}
 
-HIRISE_SOURCE = (
-    "HiRISE orthomosaic, 25 cm/pixel (Mars 2020 Terrain Relative Navigation). "
-    "MRO, NASA/JPL-Caltech/University of Arizona; mosaic by USGS Astrogeology Science Center "
-    "(Fergason and others, 2020, doi:10.5066/P9QJDP48)"
-)
-DTM_SOURCE = (
-    "HiRISE DTM mosaic, ~1 m/pixel (Mars 2020 Terrain Relative Navigation). "
-    "MRO, NASA/JPL-Caltech/University of Arizona; mosaic by USGS Astrogeology Science Center "
-    "(Fergason and others, 2020, doi:10.5066/P9REJ9JN)"
-)
-GEOLOGY_SOURCE = (
-    "Sun, V.Z., and Stack, K.M., 2020, Geologic Map of Jezero Crater and the "
-    "Nili Planum Region, Mars: USGS Scientific Investigations Map 3464"
-)
 SLOPE_METHOD = (
     "Angle of the steepest rise at each 1 m cell, from the height differences "
     "to the neighbouring cells of the HiRISE DTM (central differences)."
@@ -122,12 +108,16 @@ def slope_band_image(slope, band_deg, colormap_name, alpha):
     return image, legend
 
 
-def save_overlay_tiles(image, tiles_dir, tile_size):
-    """Cut an RGBA image into PNG tiles, zoom 0 down to one tile. Returns {zoom: tile count}."""
+def save_overlay_tiles(image, tiles_dir, tile_size, start_zoom=0):
+    """Cut an RGBA image into PNG tiles, start_zoom down to one tile. Returns {zoom: tile count}.
+
+    start_zoom is the zoom at which one image pixel is one tile pixel (0 for a 1-cell grid,
+    -3 for an image of 8 x 8 cells per pixel).
+    """
     if os.path.isdir(tiles_dir):
         shutil.rmtree(tiles_dir)
     tile_counts = {}
-    zoom = 0
+    zoom = start_zoom
     while True:
         count = 0
         for tile_row in range(math.ceil(image.shape[0] / tile_size)):
@@ -187,19 +177,19 @@ def decode_readout(image, base, step):
     return values
 
 
-def write_readouts(heights, slope, unit_ids):
+def write_readouts(pack_dir, site, heights, slope, unit_ids):
     """Write the readout images; return their manifest entries."""
     every = DEFAULT_READOUT["sample_every_px"]
     elevation_base = float(math.floor(numpy.nanmin(heights)))
     entries = []
     for readout_id, values, base, step, units, label, source in (
-        ("elevation", heights, elevation_base, DEFAULT_READOUT["elevation_step_m"], "m", "NASA DATA", DTM_SOURCE),
-        ("slope", slope, 0.0, DEFAULT_READOUT["slope_step_deg"], "degrees", "CALCULATED", DTM_SOURCE),
-        ("unit", unit_ids.astype(numpy.float64), 0.0, 1.0, None, "NASA DATA", GEOLOGY_SOURCE),
+        ("elevation", heights, elevation_base, DEFAULT_READOUT["elevation_step_m"], "m", "NASA DATA", site["dtm_source"]),
+        ("slope", slope, 0.0, DEFAULT_READOUT["slope_step_deg"], "degrees", "CALCULATED", site["dtm_source"]),
+        ("unit", unit_ids.astype(numpy.float64), 0.0, 1.0, None, "NASA DATA", site["geology_source"]),
     ):
         file_name = f"layers/{readout_id}_readout.png"
         image = encode_readout(values, base, step, every)
-        Image.fromarray(image, mode="RGB").save(os.path.join(PACK_DIR, file_name), optimize=True)
+        Image.fromarray(image, mode="RGB").save(os.path.join(pack_dir, file_name), optimize=True)
         entries.append(
             {
                 "id": readout_id,
@@ -229,8 +219,8 @@ def photo_file_name(stop_id, photo):
     return f"stop{stop_id}_sol{photo['sol']}_{camera_slug}.jpg"
 
 
-def build_stops(stops, slope, geology, dtm):
-    photos_dir = os.path.join(PACK_DIR, "photos")
+def build_stops(pack_dir, stops, slope, geology, dtm):
+    photos_dir = os.path.join(pack_dir, "photos")
     if os.path.isdir(photos_dir):
         shutil.rmtree(photos_dir)
     os.makedirs(photos_dir)
@@ -283,7 +273,8 @@ def build_stops(stops, slope, geology, dtm):
     return pack_stops
 
 
-def build_manifest(grid, slope_legend, geology, tile_zooms, readouts, slope_tiles, geology_tiles):
+def build_manifest(mission, grid, slope_legend, geology, tile_zooms, readouts, slope_tiles, geology_tiles):
+    site = mission["site"]
     geology_legend = []
     for unit in geology["units"]:
         geology_legend.append(
@@ -291,11 +282,11 @@ def build_manifest(grid, slope_legend, geology, tile_zooms, readouts, slope_tile
              "color": unit["color"], "pattern": unit["pattern"]}
         )
     return {
-        "id": PACK_ID,
-        "version": PACK_VERSION,
+        "id": mission["pack_id"],
+        "version": mission["pack_version"],
         "created": datetime.date.today().isoformat(),
         "site": {
-            "name": SITE_NAME,
+            "name": site["name"],
             "bounds_px": [0, 0, grid["width"], grid["height"]],
             "bounds_lonlat": grid["bounds_lonlat"],
         },
@@ -316,9 +307,9 @@ def build_manifest(grid, slope_legend, geology, tile_zooms, readouts, slope_tile
                 },
                 "units": None,
                 "legend": None,
-                "source": HIRISE_SOURCE,
-                "product_id": "JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first",
-                "as_of": "2020",
+                "source": site["image_source"],
+                "product_id": site["image_product_id"],
+                "as_of": site["as_of"],
                 "label": "NASA DATA",
             },
             {
@@ -327,9 +318,9 @@ def build_manifest(grid, slope_legend, geology, tile_zooms, readouts, slope_tile
                 "tiles": slope_tiles,
                 "units": "degrees",
                 "legend": slope_legend,
-                "source": DTM_SOURCE,
-                "product_id": "JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40",
-                "as_of": "2020",
+                "source": site["dtm_source"],
+                "product_id": site["dtm_product_id"],
+                "as_of": site["as_of"],
                 "label": "CALCULATED",
                 "method": SLOPE_METHOD,
             },
@@ -339,9 +330,9 @@ def build_manifest(grid, slope_legend, geology, tile_zooms, readouts, slope_tile
                 "tiles": geology_tiles,
                 "units": None,
                 "legend": geology_legend,
-                "source": GEOLOGY_SOURCE,
-                "product_id": "SIM 3464, layer GeoUnits_v1",
-                "as_of": "2020",
+                "source": site["geology_source"],
+                "product_id": site["geology_product_id"],
+                "as_of": site["as_of"],
                 "label": "NASA DATA",
             },
         ],
@@ -384,9 +375,9 @@ def tiles_near_points(points, zoom, buffer_px, tile_size):
     return tiles
 
 
-def write_offline_list(manifest, pack_stops, legs):
+def write_offline_list(pack_dir, manifest, pack_stops, legs):
     """Write offline.json: "core" and "route_detail" file lists (paths inside the pack)."""
-    core = ["manifest.json", "stops.json", "routes.json"]
+    core = ["manifest.json", "mission.json", "stops.json", "routes.json"]
     for readout in manifest["readouts"]:
         core.append(readout["file"])
     for stop in pack_stops:
@@ -401,27 +392,191 @@ def write_offline_list(manifest, pack_stops, legs):
         tiles = layer.get("tiles")
         if tiles is None:
             continue
-        core_max = DEFAULT_OFFLINE["core_max_zoom"].get(layer["id"], tiles["min_zoom"])
+        if layer.get("context"):
+            core_max = tiles["max_zoom"]  # the Mars context layers are small: save them whole
+        else:
+            core_max = DEFAULT_OFFLINE["core_max_zoom"].get(layer["id"], tiles["min_zoom"])
         for zoom in range(tiles["min_zoom"], tiles["max_zoom"] + 1):
             if zoom <= core_max:
-                folder = os.path.join(PACK_DIR, tiles["url"].split("{z}")[0], str(zoom))
+                folder = os.path.join(pack_dir, tiles["url"].split("{z}")[0], str(zoom))
                 for x_name in sorted(os.listdir(folder)):
                     for file_name in sorted(os.listdir(os.path.join(folder, x_name))):
                         core.append(f"{tiles['url'].split('{z}')[0]}{zoom}/{x_name}/{file_name}")
             else:
                 for x, y in sorted(tiles_near_points(points, zoom, buffer_px, tiles["tile_size"])):
                     path = tiles["url"].replace("{z}", str(zoom)).replace("{x}", str(x)).replace("{y}", str(y))
-                    if os.path.isfile(os.path.join(PACK_DIR, path)):
+                    if os.path.isfile(os.path.join(pack_dir, path)):
                         route_detail.append(path)
 
     offline = {"version": manifest["version"], "corridor_m": DEFAULT_OFFLINE["corridor_m"], "core": core, "route_detail": route_detail}
-    with open(os.path.join(PACK_DIR, "offline.json"), "w", encoding="utf-8") as offline_file:
+    with open(os.path.join(pack_dir, "offline.json"), "w", encoding="utf-8") as offline_file:
         json.dump(offline, offline_file)
     return offline
 
 
-def tile_zoom_levels():
-    tiles_dir = os.path.join(PACK_DIR, "tiles", "hirise")
+def write_mission_file(pack_dir, mission):
+    """The mission as the app shows it: no raw-file names, only what the user reads."""
+    questions = []
+    for stop in mission["stops"]:
+        questions.append({"stop_id": stop["id"], "question": stop["question"]})
+    pack_mission = {
+        "id": mission["id"],
+        "name": mission["name"],
+        "status": mission["status"],
+        "objective": mission["objective"],
+        "objective_sources": mission["objective_sources"],
+        "site": mission["site"]["name"],
+        "questions": questions,
+    }
+    with open(os.path.join(pack_dir, "mission.json"), "w", encoding="utf-8") as mission_file:
+        json.dump(pack_mission, mission_file, ensure_ascii=False, indent=2)
+
+
+def write_missions_index():
+    """web/missions.json: every built pack that has a mission.json, for the boot screen."""
+    data_dir = os.path.join(WEB_DIR, "data")
+    entries = []
+    for pack_name in sorted(os.listdir(data_dir)):
+        mission_path = os.path.join(data_dir, pack_name, "mission.json")
+        manifest_path = os.path.join(data_dir, pack_name, "manifest.json")
+        if not os.path.isfile(mission_path) or not os.path.isfile(manifest_path):
+            continue
+        with open(mission_path, "r", encoding="utf-8") as mission_file:
+            pack_mission = json.load(mission_file)
+        with open(manifest_path, "r", encoding="utf-8") as manifest_file:
+            manifest = json.load(manifest_file)
+        west, south, east, north = manifest["site"]["bounds_lonlat"]
+        entries.append(
+            {
+                "pack": f"data/{pack_name}/",
+                "id": pack_mission["id"],
+                "name": pack_mission["name"],
+                "status": pack_mission["status"],
+                "site": pack_mission["site"],
+                "stop_count": len(pack_mission["questions"]),
+                "pack_version": manifest["version"],
+                "centre_lonlat": [round((west + east) / 2, 4), round((south + north) / 2, 4)],
+            }
+        )
+    with open(MISSIONS_INDEX_PATH, "w", encoding="utf-8") as index_file:
+        json.dump(entries, index_file, ensure_ascii=False, indent=2)
+    return entries
+
+
+# Thermal display (choice only): a dark-to-bright colour scale over the 8-bit values.
+DEFAULT_THERMAL_DISPLAY = {"colormap": "inferno", "alpha": 190, "legend_steps": 6}
+
+
+def thermal_band_image(values, no_data, colormap_name, alpha):
+    """RGBA image of 8-bit thermal values (0-255) on a colour scale; no data = transparent."""
+    colormap = colormaps[colormap_name]
+    lookup = (numpy.array([colormap(level / 255.0) for level in range(256)]) * 255).astype(numpy.uint8)
+    has_data = values != no_data
+    image = numpy.zeros(values.shape + (4,), dtype=numpy.uint8)
+    image[has_data, 0:3] = lookup[values[has_data].astype(numpy.uint8), 0:3]
+    image[has_data, 3] = alpha
+    return image, lookup
+
+
+def thermal_layers(pack_dir, thermal, work_dir):
+    """Map layers + readouts for THEMIS night and day; ([], []) if thermal.py has not run."""
+    layers = []
+    readouts = []
+    for kind, name in (("night", "THEMIS NIGHT IR"), ("day", "THEMIS DAY IR")):
+        source_path = os.path.join(work_dir, f"thermal_{kind}.tif")
+        if not os.path.isfile(source_path):
+            return [], []
+        with rasterio.open(source_path) as source:
+            values = source.read(1)
+            no_data = source.nodata
+            metres_per_cell = source.res[0]
+        with open(os.path.join(work_dir, "grid.json"), "r", encoding="utf-8") as grid_file:
+            cell_px = int(round(metres_per_cell / json.load(grid_file)["metres_per_pixel"]))
+        image, lookup = thermal_band_image(values, no_data, DEFAULT_THERMAL_DISPLAY["colormap"], DEFAULT_THERMAL_DISPLAY["alpha"])
+        start_zoom = -int(round(math.log2(cell_px)))
+        counts = save_overlay_tiles(image, os.path.join(pack_dir, "tiles", f"thermal-{kind}"), TILE_SIZE, start_zoom)
+        legend = []
+        steps = DEFAULT_THERMAL_DISPLAY["legend_steps"]
+        for step in range(steps):
+            low = round(step * 255 / steps)
+            high = round((step + 1) * 255 / steps)
+            middle = (low + high) // 2
+            legend.append({"from_value": low, "to_value": high, "color": [int(v) for v in lookup[middle, 0:3]]})
+        layers.append(
+            {
+                "id": f"thermal-{kind}",
+                "kind": "raster-continuous",
+                "tiles": {
+                    "url": f"tiles/thermal-{kind}/{{z}}/{{x}}/{{y}}.png",
+                    "min_zoom": min(counts),
+                    "max_zoom": max(counts),
+                    "tile_size": TILE_SIZE,
+                },
+                "units": "8-bit value (qualitative): brighter = warmer surface when observed",
+                "legend": legend,
+                "source": thermal["source"],
+                "product_id": thermal["product_id"],
+                "as_of": thermal["as_of"],
+                "label": "NASA DATA",
+                "display_name": name,
+            }
+        )
+        file_name = f"layers/thermal_{kind}_readout.png"
+        coded = encode_readout(values.astype(numpy.float64), 0.0, 1.0, 1)
+        has_value = values != no_data
+        coded[~has_value, 0] = READOUT_NO_DATA_CODE >> 8
+        coded[~has_value, 1] = READOUT_NO_DATA_CODE & 255
+        Image.fromarray(coded, mode="RGB").save(os.path.join(pack_dir, file_name), optimize=True)
+        readouts.append(
+            {
+                "id": f"thermal_{kind}",
+                "file": file_name,
+                "units": "8-bit value",
+                "base": 0.0,
+                "step": 1.0,
+                "sample_every_px": cell_px,
+                "no_data_code": READOUT_NO_DATA_CODE,
+                "label": "NASA DATA",
+                "source": thermal["source"],
+            }
+        )
+    return layers, readouts
+
+
+def context_layers(work_dir):
+    """Planet / region / crater layers from context_maps.py (empty list if it has not run)."""
+    context_path = os.path.join(work_dir, "context.json")
+    if not os.path.isfile(context_path):
+        return []
+    with open(context_path, "r", encoding="utf-8") as context_file:
+        context = json.load(context_file)
+    layers = []
+    for entry in context["layers"]:
+        layers.append(
+            {
+                "id": entry["id"],
+                "kind": "imagery",
+                "context": True,
+                "tiles": {
+                    "url": f"tiles/{entry['id']}/{{z}}/{{x}}/{{y}}.png",
+                    "min_zoom": entry["min_zoom"],
+                    "max_zoom": entry["max_zoom"],
+                    "tile_size": TILE_SIZE,
+                    "bounds_lonlat": entry["bounds_lonlat"],
+                },
+                "units": None,
+                "legend": None,
+                "source": entry["source"],
+                "product_id": "Mars_Viking_MDIM21_ClrMosaic_global_232m",
+                "as_of": None,
+                "label": "NASA DATA",
+            }
+        )
+    return layers
+
+
+def tile_zoom_levels(pack_dir):
+    tiles_dir = os.path.join(pack_dir, "tiles", "hirise")
     zooms = []
     for name in os.listdir(tiles_dir):
         if re.fullmatch(r"-?\d+", name):
@@ -431,68 +586,80 @@ def tile_zoom_levels():
     return zooms
 
 
-def main():
-    for needed_path in (GRID_PATH, CROPPED_DTM_PATH, SLOPE_PATH, ROUTES_PATH, GEOLOGY_JSON_PATH, OVERLAY_PATH, LOOKUP_PATH):
+def main(mission_path):
+    mission = load_mission(mission_path)
+    paths = MissionPaths(mission)
+    pack_dir = paths.pack_dir
+    for needed_path in (paths.grid, paths.cropped_dtm, paths.slope, paths.routes, paths.geology_json, paths.geology_overlay, paths.geology_ids):
         if not os.path.isfile(needed_path):
             raise FileNotFoundError(f"{needed_path} is missing; run the earlier pipeline steps first")
 
-    with open(GRID_PATH, "r", encoding="utf-8") as grid_file:
+    with open(paths.grid, "r", encoding="utf-8") as grid_file:
         grid = json.load(grid_file)
-    with open(GEOLOGY_JSON_PATH, "r", encoding="utf-8") as geology_file:
+    with open(paths.geology_json, "r", encoding="utf-8") as geology_file:
         geology = json.load(geology_file)
-    with rasterio.open(SLOPE_PATH) as slope_file:
+    with rasterio.open(paths.slope) as slope_file:
         slope = slope_file.read(1)
-    with rasterio.open(CROPPED_DTM_PATH) as dtm:
+    with rasterio.open(paths.cropped_dtm) as dtm:
         heights = read_heights(dtm)
 
-    layers_dir = os.path.join(PACK_DIR, "layers")
+    layers_dir = os.path.join(pack_dir, "layers")
     if os.path.isdir(layers_dir):
         shutil.rmtree(layers_dir)
     os.makedirs(layers_dir)
     slope_image, slope_legend = slope_band_image(
         slope, DEFAULT_SLOPE_BANDS["band_deg"], DEFAULT_SLOPE_BANDS["colormap"], DEFAULT_SLOPE_BANDS["alpha"]
     )
-    slope_tile_counts = save_overlay_tiles(slope_image, os.path.join(PACK_DIR, "tiles", "slope"), TILE_SIZE)
+    slope_tile_counts = save_overlay_tiles(slope_image, os.path.join(pack_dir, "tiles", "slope"), TILE_SIZE)
     del slope_image
     Image.MAX_IMAGE_PIXELS = None  # our own 54 MP images from geology.py
-    with Image.open(OVERLAY_PATH) as overlay_file:
+    with Image.open(paths.geology_overlay) as overlay_file:
         geology_overlay = numpy.array(overlay_file.convert("RGBA"))
-    geology_tile_counts = save_overlay_tiles(geology_overlay, os.path.join(PACK_DIR, "tiles", "geology"), TILE_SIZE)
+    geology_tile_counts = save_overlay_tiles(geology_overlay, os.path.join(pack_dir, "tiles", "geology"), TILE_SIZE)
     del geology_overlay
-    with Image.open(LOOKUP_PATH) as lookup_file:
+    with Image.open(paths.geology_ids) as lookup_file:
         unit_ids = numpy.array(lookup_file)
-    readouts = write_readouts(heights, slope, unit_ids)
+    readouts = write_readouts(pack_dir, mission["site"], heights, slope, unit_ids)
 
-    stops = load_stops()
-    with rasterio.open(CROPPED_DTM_PATH) as dtm:
-        pack_stops = build_stops(stops, slope, geology, dtm)
+    stops = mission["stops"]
+    with rasterio.open(paths.cropped_dtm) as dtm:
+        pack_stops = build_stops(pack_dir, stops, slope, geology, dtm)
 
-    shutil.copyfile(ROUTES_PATH, os.path.join(PACK_DIR, "routes.json"))
-    with open(os.path.join(PACK_DIR, "stops.json"), "w", encoding="utf-8") as stops_file:
+    shutil.copyfile(paths.routes, os.path.join(pack_dir, "routes.json"))
+    write_mission_file(pack_dir, mission)
+    with open(os.path.join(pack_dir, "stops.json"), "w", encoding="utf-8") as stops_file:
         json.dump(pack_stops, stops_file, ensure_ascii=False, indent=2)
     manifest = build_manifest(
+        mission,
         grid,
         slope_legend,
         geology,
-        tile_zoom_levels(),
+        tile_zoom_levels(pack_dir),
         readouts,
         overlay_tiles_entry("slope", slope_tile_counts),
         overlay_tiles_entry("geology", geology_tile_counts),
     )
-    with open(os.path.join(PACK_DIR, "manifest.json"), "w", encoding="utf-8") as manifest_file:
+    manifest["layers"] = context_layers(paths.work_dir) + manifest["layers"]
+    if mission["site"].get("thermal") is not None:
+        thermal_map_layers, thermal_readouts = thermal_layers(pack_dir, mission["site"]["thermal"], paths.work_dir)
+        manifest["layers"] = manifest["layers"] + thermal_map_layers
+        manifest["readouts"] = manifest["readouts"] + thermal_readouts
+    with open(os.path.join(pack_dir, "manifest.json"), "w", encoding="utf-8") as manifest_file:
         json.dump(manifest, manifest_file, ensure_ascii=False, indent=2)
 
-    with open(os.path.join(PACK_DIR, "routes.json"), "r", encoding="utf-8") as routes_file:
+    with open(os.path.join(pack_dir, "routes.json"), "r", encoding="utf-8") as routes_file:
         legs = json.load(routes_file)
-    offline = write_offline_list(manifest, pack_stops, legs)
+    offline = write_offline_list(pack_dir, manifest, pack_stops, legs)
 
-    errors = validate_pack(PACK_DIR)
+    errors = validate_pack(pack_dir)
     if len(errors) > 0:
-        print(f"INVALID pack {PACK_DIR}:")
+        print(f"INVALID pack {pack_dir}:")
         for error in errors:
             print(f"  - {error}")
         return 1
-    print(f"VALID pack {PACK_DIR}")
+    print(f"VALID pack {pack_dir}")
+    missions = write_missions_index()
+    print(f"Missions in {MISSIONS_INDEX_PATH}: {len(missions)}")
     for stop in pack_stops:
         unit_text = "no data"
         if stop["unit"] is not None:
@@ -500,17 +667,17 @@ def main():
         print(f"  stop {stop['id']} {stop['label']}: {stop['position']}, slope {stop['ground_slope_deg']} deg, "
               f"{unit_text}, {len(stop['photos'])} photos")
     total_bytes = 0
-    for folder, _, files in os.walk(PACK_DIR):
+    for folder, _, files in os.walk(pack_dir):
         for name in files:
             total_bytes += os.path.getsize(os.path.join(folder, name))
     print(f"Pack size: {total_bytes / 1e6:.1f} MB")
     for stage in ("core", "route_detail"):
         stage_bytes = 0
         for path in offline[stage]:
-            stage_bytes += os.path.getsize(os.path.join(PACK_DIR, path))
+            stage_bytes += os.path.getsize(os.path.join(pack_dir, path))
         print(f"Offline {stage}: {len(offline[stage])} files, {stage_bytes / 1e6:.1f} MB")
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(mission_path_from_arguments()))

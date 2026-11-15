@@ -263,6 +263,22 @@ class PackFormatTest(unittest.TestCase):
         self.edit_json("stops.json", change)
         self.assert_invalid("missing field 'credit'")
 
+    def test_mission_question_needs_known_stop(self):
+        write_json(
+            os.path.join(self.pack_dir, "mission.json"),
+            {"id": "m", "name": "M", "status": "ACTIVE", "objective": "o", "objective_sources": [{"text": "s"}],
+             "site": "Test site", "questions": [{"stop_id": 9, "question": "q"}]},
+        )
+        self.assert_invalid("needs a known stop_id")
+
+    def test_valid_mission_file(self):
+        write_json(
+            os.path.join(self.pack_dir, "mission.json"),
+            {"id": "m", "name": "M", "status": "ACTIVE", "objective": "o", "objective_sources": [{"text": "s"}],
+             "site": "Test site", "questions": [{"stop_id": 1, "question": "q"}]},
+        )
+        self.assertEqual(validate_pack(self.pack_dir), [])
+
     def test_route_to_unknown_stop(self):
         def change(routes):
             routes[0]["to"] = 9

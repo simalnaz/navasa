@@ -37,6 +37,8 @@ stops.json   [{"id", "label", "position", "position_source", "ground_slope_deg",
                "photos": [{"file", "sol", "camera", "image_id", "credit"}]}]
              photo file is a path inside the pack; ground_slope_deg, unit,
              unit description and image_id may be null (no data).
+mission.json (optional) {"id", "name", "status", "objective", "objective_sources",
+             "site", "questions": [{"stop_id", "question"}]}
 routes.json  [{"from", "to", "shortest": route, "gentlest": route}]
              route: {"points": [[col, row], ...], "distance_m", "climb_m",
                      "descent_m", "max_slope_deg", "max_slope_at": [col, row]}
@@ -424,6 +426,25 @@ def check_readouts(pack_dir, readouts, errors):
             errors.append(f"{where}: label {readout['label']!r} is not one of {VALUE_LABELS}")
 
 
+REQUIRED_PACK_MISSION_FIELDS = ("id", "name", "status", "objective", "objective_sources", "site", "questions")
+
+
+def check_pack_mission(pack_mission, stop_ids, errors):
+    if not check_required_fields(pack_mission, REQUIRED_PACK_MISSION_FIELDS, "mission", errors):
+        return
+    for text_field in ("id", "name", "status", "objective", "site"):
+        if not is_text(pack_mission[text_field]):
+            errors.append(f"mission: {text_field} must be text")
+    if not isinstance(pack_mission["objective_sources"], list) or len(pack_mission["objective_sources"]) == 0:
+        errors.append("mission: objective_sources must be a non-empty list")
+    if not isinstance(pack_mission["questions"], list):
+        errors.append("mission: questions must be a list")
+        return
+    for index, question in enumerate(pack_mission["questions"]):
+        if not isinstance(question, dict) or question.get("stop_id") not in stop_ids or not is_text(question.get("question")):
+            errors.append(f"mission question {index}: needs a known stop_id and question text")
+
+
 def validate_pack(pack_dir):
     """Check a data pack folder. Return a list of problems; an empty list means valid."""
     errors = []
@@ -452,6 +473,12 @@ def validate_pack(pack_dir):
     stops = load_json_file(os.path.join(pack_dir, STOPS_FILE_NAME), "stops", list, errors)
     if stops is not None:
         stop_ids = check_stops(pack_dir, stops, grid, errors)
+
+    mission_path = os.path.join(pack_dir, "mission.json")
+    if os.path.isfile(mission_path):
+        pack_mission = load_json_file(mission_path, "mission", dict, errors)
+        if pack_mission is not None:
+            check_pack_mission(pack_mission, stop_ids, errors)
 
     legs = load_json_file(os.path.join(pack_dir, ROUTES_FILE_NAME), "routes", list, errors)
     if legs is not None:

@@ -4,17 +4,18 @@ Walk area: the box around all stops on the 1 m DTM grid, plus DEFAULT_CROP["marg
 on every side. The DTM pixels of that box are the pack grid: pixel [col, row]
 means the same place in every layer.
 
-Outputs:
-    data/work/dtm_1m.tif      cropped DTM (heights in metres, the file's own no-data value kept)
-    data/work/grid.json       the grid: size, metres per pixel, position on Mars
-    web/data/jezero_v1/tiles/hirise/{z}/{x}/{y}.jpg
+Inputs (from the mission file): the site's DTM and orthoimage in data/raw/.
+Outputs (paths in mission.MissionPaths):
+    data/work/<pack>/dtm_1m.tif    cropped DTM (heights in metres, the file's own no-data value kept)
+    data/work/<pack>/grid.json     the grid: size, metres per pixel, position on Mars
+    web/data/<pack>/tiles/hirise/{z}/{x}/{y}.jpg
                               25 cm image as 256 px JPEG tiles. At zoom z, one grid
                               pixel is 2**z tile pixels. The highest zoom shows the
                               image at its full 25 cm resolution; the lowest zoom
                               fits the whole area in one tile.
 
 Usage:
-    python -m pipeline.crop_layers
+    python -m pipeline.crop_layers [data/missions/<mission>.json]
 """
 
 import json
@@ -29,17 +30,8 @@ from rasterio.crs import CRS
 from rasterio.warp import transform
 from rasterio.windows import Window, from_bounds
 
-from pipeline.stops import PROJECT_ROOT, load_stops, lonlat_to_pixel
-
-RAW_DIR = os.path.join(PROJECT_ROOT, "data", "raw")
-WORK_DIR = os.path.join(PROJECT_ROOT, "data", "work")
-PACK_DIR = os.path.join(PROJECT_ROOT, "web", "data", "jezero_v1")
-
-DTM_PATH = os.path.join(RAW_DIR, "JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40.tif")
-HIRISE_PATH = os.path.join(RAW_DIR, "JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first.tif")
-CROPPED_DTM_PATH = os.path.join(WORK_DIR, "dtm_1m.tif")
-GRID_PATH = os.path.join(WORK_DIR, "grid.json")
-HIRISE_TILES_DIR = os.path.join(PACK_DIR, "tiles", "hirise")
+from pipeline.mission import MissionPaths, load_mission, mission_path_from_arguments
+from pipeline.stops import lonlat_to_pixel
 
 DEFAULT_CROP = {"margin_m": 1000}
 DEFAULT_TILES = {"tile_size": 256, "jpeg_quality": 75}
@@ -162,11 +154,13 @@ def lonlat_bounds(dataset, map_bounds):
     return [lons[0], lats[0], lons[1], lats[1]]
 
 
-def main():
-    stops = load_stops()
-    os.makedirs(WORK_DIR, exist_ok=True)
+def main(mission_path):
+    mission = load_mission(mission_path)
+    paths = MissionPaths(mission)
+    stops = mission["stops"]
+    os.makedirs(paths.work_dir, exist_ok=True)
 
-    with rasterio.open(DTM_PATH) as dtm:
+    with rasterio.open(paths.dtm) as dtm:
         metres_per_pixel = dtm.res[0]
         if dtm.res[0] != dtm.res[1]:
             raise ValueError("DTM pixels are not square")
@@ -181,7 +175,7 @@ def main():
         profile = dtm.profile.copy()
         profile.update(width=window.width, height=window.height, transform=window_transform)
         heights = dtm.read(1, window=window)
-        with rasterio.open(CROPPED_DTM_PATH, "w", **profile) as cropped:
+        with rasterio.open(paths.cropped_dtm, "w", **profile) as cropped:
             cropped.write(heights, 1)
         no_data_cells = int((heights == dtm.nodata).sum())
         grid = {
@@ -195,13 +189,13 @@ def main():
             "margin_m": DEFAULT_CROP["margin_m"],
         }
 
-    with open(GRID_PATH, "w", encoding="utf-8") as grid_file:
+    with open(paths.grid, "w", encoding="utf-8") as grid_file:
         json.dump(grid, grid_file, indent=2)
     print(f"Grid: {grid['width']} x {grid['height']} pixels at {metres_per_pixel} m")
     print(f"Bounds (lon/lat): {grid['bounds_lonlat']}")
     print(f"DTM cells without data in the walk area: {no_data_cells}")
 
-    with rasterio.open(HIRISE_PATH) as hirise:
+    with rasterio.open(paths.image) as hirise:
         hirise_window = aligned_window(hirise, map_bounds)
         pixels_per_grid_pixel = hirise_window.width / window.width
         max_zoom = int(round(math.log2(pixels_per_grid_pixel)))
@@ -212,15 +206,15 @@ def main():
             hirise,
             hirise_window,
             max_zoom,
-            HIRISE_TILES_DIR,
+            paths.image_tiles,
             DEFAULT_TILES["tile_size"],
             DEFAULT_TILES["jpeg_quality"],
         )
     for zoom in sorted(tile_counts):
         print(f"  zoom {zoom}: {tile_counts[zoom]} tiles")
-    print(f"Tiles in {HIRISE_TILES_DIR}")
+    print(f"Tiles in {paths.image_tiles}")
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(mission_path_from_arguments()))

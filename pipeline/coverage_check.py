@@ -1,28 +1,24 @@
 """Print a YES/NO table: which data exists at each stop.
 
-For each raster, YES means the stop lies inside the file and the file's own
-mask says the pixel there holds data. Geology is not checked yet because no
-approved library can read the SIM 3464 geodatabase.
+For each raster named in the mission file (orthoimage, DTM), YES means the stop
+lies inside the file and the file's own mask says the pixel there holds data.
+The geology column shows the unit found by geology.py (run it first).
 
 Usage:
-    python -m pipeline.coverage_check
+    python -m pipeline.coverage_check [data/missions/<mission>.json]
 """
 
+import json
 import os
 import sys
 
 import rasterio
 from rasterio.windows import Window
 
-from pipeline.stops import PROJECT_ROOT, StopsFileError, load_stops, lonlat_to_pixel
+from pipeline.mission import MissionFileError, MissionPaths, load_mission, mission_path_from_arguments
+from pipeline.stops import PROJECT_ROOT, lonlat_to_pixel
 
-RAW_DIR = os.path.join(PROJECT_ROOT, "data", "raw")
-RASTER_FILES = (
-    ("25cm image", "JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first.tif"),
-    ("6m image", "JEZ_ctx_B_soc_008_orthoMosaic_6m_Eqc_latTs0_lon0.tif"),
-    ("1m DTM", "JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40.tif"),
-)
-GEOLOGY_NOT_CHECKED = "not checked (no reader)"
+GEOLOGY_NOT_RUN = "not checked (run geology.py)"
 
 
 def raster_has_data(dataset, lon, lat):
@@ -47,17 +43,36 @@ def yes_no(value):
     return "NO"
 
 
-def main():
+def geology_by_stop(paths):
+    """Unit symbol at each stop from geology.py's output, or None if it has not run."""
+    if not os.path.isfile(paths.geology_json):
+        return None
+    with open(paths.geology_json, "r", encoding="utf-8") as geology_file:
+        geology = json.load(geology_file)
+    symbols = {}
+    for unit in geology["units"]:
+        symbols[unit["id"]] = unit["symbol"]
+    result = {}
+    for stop_id, unit_id in geology["stop_units"].items():
+        result[stop_id] = symbols.get(unit_id, "NO")
+    return result
+
+
+def main(mission_path):
     try:
-        stops = load_stops()
-    except StopsFileError as error:
-        print("Cannot check coverage, data/stops.json has problems:")
+        mission = load_mission(mission_path)
+    except MissionFileError as error:
+        print("Cannot check coverage, the mission file has problems:")
         for problem in error.problems:
             print(f"  - {problem}")
         return 1
+    paths = MissionPaths(mission)
+    stops = mission["stops"]
+    raster_files = (("image", paths.image), ("DTM", paths.dtm))
+    units = geology_by_stop(paths)
 
     headers = ["stop"]
-    for raster_name, _ in RASTER_FILES:
+    for raster_name, _ in raster_files:
         headers.append(raster_name)
     headers.append("geology unit")
     headers.append("photos")
@@ -65,13 +80,16 @@ def main():
     rows = []
     datasets = []
     try:
-        for _, file_name in RASTER_FILES:
-            datasets.append(rasterio.open(os.path.join(RAW_DIR, file_name)))
+        for _, raster_path in raster_files:
+            datasets.append(rasterio.open(raster_path))
         for stop in stops:
             row = [f"{stop['id']} {stop['label']}"]
             for dataset in datasets:
                 row.append(yes_no(raster_has_data(dataset, stop["lon"], stop["lat"])))
-            row.append(GEOLOGY_NOT_CHECKED)
+            if units is None:
+                row.append(GEOLOGY_NOT_RUN)
+            else:
+                row.append(units.get(str(stop["id"]), "NO"))
             row.append(yes_no(photos_present(stop)))
             rows.append(row)
     finally:
@@ -99,4 +117,4 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(mission_path_from_arguments()))

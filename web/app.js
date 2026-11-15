@@ -120,10 +120,34 @@ function setUpTabs() {
 
 // ---------------------------------------------------------------- map and layers
 
+// Longitude/latitude <-> map position. The grid is equirectangular, so both are straight lines.
+function lonLatToLatLng(manifest, lon, lat) {
+  const box = manifest.site.bounds_lonlat; // west, south, east, north
+  const col = ((lon - box[0]) / (box[2] - box[0])) * manifest.grid.width;
+  const row = ((box[3] - lat) / (box[3] - box[1])) * manifest.grid.height;
+  return gridToLatLng(col, row);
+}
+
+function lonLatBounds(manifest, box) {
+  return L.latLngBounds(lonLatToLatLng(manifest, box[0], box[1]), lonLatToLatLng(manifest, box[2], box[3]));
+}
+
+function siteCentre(manifest) {
+  const box = manifest.site.bounds_lonlat;
+  return lonLatToLatLng(manifest, (box[0] + box[2]) / 2, (box[1] + box[3]) / 2);
+}
+
 function createMap(manifest) {
   const width = manifest.grid.width;
   const height = manifest.grid.height;
   const bounds = L.latLngBounds(gridToLatLng(0, height), gridToLatLng(width, 0));
+  let hasContext = false;
+  for (const layer of manifest.layers) {
+    if (layer.context) {
+      hasContext = true;
+    }
+  }
+  const planetBounds = hasContext ? lonLatBounds(manifest, [-180, -90, 180, 90]) : bounds.pad(0.25);
 
   let minZoom = 0;
   for (const layer of manifest.layers) {
@@ -136,10 +160,17 @@ function createMap(manifest) {
     crs: L.CRS.Simple,
     minZoom: minZoom,
     maxZoom: MAP_MAX_ZOOM,
-    maxBounds: bounds.pad(0.25),
+    maxBounds: planetBounds,
+    maxBoundsViscosity: 0.8,
     attributionControl: false,
   });
   map.fitBounds(bounds);
+  setUpWalkAreaPane(map, bounds);
+  addContextLayers(map, manifest);
+  // Far out (planet, region) the stop squares and routes would sit on top of each other.
+  map.on("zoomend", function () {
+    map.getContainer().classList.toggle("far-out", map.getZoom() < FAR_OUT_ZOOM);
+  });
 
   // The scale bar measures in grid pixels, so it is only right for a 1 m grid.
   if (manifest.grid.metres_per_pixel === 1) {
@@ -159,6 +190,7 @@ function makeTileLayer(layer, bounds) {
     bounds: bounds,
     noWrap: true,
     className: isOverlay ? "pixelated" : "",
+    pane: isOverlay ? "dataOverlays" : "walkArea",
   });
 }
 
@@ -187,6 +219,20 @@ function geologyLegend(legend) {
     row.appendChild(makeElement("span", "", unit.symbol + " · " + unit.name + " (" + unit.pattern + ")"));
     box.appendChild(row);
   }
+  return box;
+}
+
+function thermalLegend(layer) {
+  const box = makeElement("div", "legend");
+  for (const band of layer.legend) {
+    const row = makeElement("div", "legend-row");
+    const swatch = makeElement("span", "legend-swatch");
+    swatch.style.background = "rgb(" + band.color.join(",") + ")";
+    row.appendChild(swatch);
+    row.appendChild(makeElement("span", "", band.from_value + "–" + band.to_value));
+    box.appendChild(row);
+  }
+  box.appendChild(makeElement("p", "note", layer.units));
   return box;
 }
 
@@ -235,9 +281,55 @@ function addLayerButton(map, name, tag, mapLayer, legend, startOn) {
   show(startOn);
 }
 
+// The 25 cm image tiles pad their edges with black (JPEG has no transparency); this pane
+// shows only the walk area, so the Mars surface around it stays visible.
+const FAR_OUT_ZOOM = -7;
+
+function setUpWalkAreaPane(map, walkBounds) {
+  const pane = map.createPane("walkArea");
+  pane.style.zIndex = 250; // above the Mars context tiles (200)
+  map.createPane("dataOverlays").style.zIndex = 300; // slope, rock units, thermal: above the image
+  function clip() {
+    const topLeft = map.latLngToLayerPoint(walkBounds.getNorthWest());
+    const bottomRight = map.latLngToLayerPoint(walkBounds.getSouthEast());
+    pane.style.clipPath =
+      "polygon(" + topLeft.x + "px " + topLeft.y + "px, " + bottomRight.x + "px " + topLeft.y + "px, " +
+      bottomRight.x + "px " + bottomRight.y + "px, " + topLeft.x + "px " + bottomRight.y + "px)";
+  }
+  map.on("zoomend moveend viewreset resize", clip);
+  clip();
+}
+
+// Mars around the walk area (planet, region, crater), always underneath the mission layers.
+const CONTEXT_EXTRA_ZOOM = 6; // how far a context layer may be enlarged past its sharpest zoom
+
+function addContextLayers(map, manifest) {
+  const group = L.layerGroup();
+  for (const layer of manifest.layers) {
+    if (!layer.context) {
+      continue;
+    }
+    const tiles = layer.tiles;
+    group.addLayer(
+      L.tileLayer(packUrl(tiles.url), {
+        tileSize: tiles.tile_size,
+        minZoom: tiles.min_zoom,
+        maxZoom: Math.min(MAP_MAX_ZOOM, tiles.max_zoom + CONTEXT_EXTRA_ZOOM),
+        minNativeZoom: tiles.min_zoom,
+        maxNativeZoom: tiles.max_zoom,
+        bounds: lonLatBounds(manifest, tiles.bounds_lonlat),
+        noWrap: true,
+      })
+    );
+  }
+  if (group.getLayers().length > 0) {
+    addLayerButton(map, "MARS SURFACE (VIKING)", "■ NASA DATA · USGS / MARS TREK", group, null, true);
+  }
+}
+
 function addPackLayers(map, bounds, manifest) {
   for (const layer of manifest.layers) {
-    if (!layer.tiles) {
+    if (!layer.tiles || layer.context) {
       continue;
     }
     const tag = (LABEL_MARK[layer.label] || "") + " " + layer.label + " · " + (layer.as_of !== null ? layer.as_of : "no date");
@@ -246,8 +338,10 @@ function addPackLayers(map, bounds, manifest) {
       legend = slopeLegend(layer.legend);
     } else if (layer.id === "geology") {
       legend = geologyLegend(layer.legend);
+    } else if (layer.id.startsWith("thermal-")) {
+      legend = thermalLegend(layer);
     }
-    const name = LAYER_NAMES[layer.id] || layer.id.toUpperCase();
+    const name = layer.display_name || LAYER_NAMES[layer.id] || layer.id.toUpperCase();
     addLayerButton(map, name, tag, makeTileLayer(layer, bounds), legend, layer.kind === "imagery");
   }
 }
@@ -269,7 +363,7 @@ function addRoutes(map, routes) {
       const points = route.points.map(function (point) {
         return gridToLatLng(point[0], point[1]);
       });
-      const line = L.polyline(points, styles[kind]);
+      const line = L.polyline(points, Object.assign({ className: "route-line" }, styles[kind]));
       line.bindTooltip(
         "LEG " + leg.from + "→" + leg.to + " · " + kind.toUpperCase() + " · " +
           (route.distance_m / 1000).toFixed(2) + " km · steepest " + route.max_slope_deg.toFixed(1) + "°",
@@ -362,9 +456,14 @@ async function setUpReadout(map, manifest) {
   if (readouts.length > 0) {
     const every = readouts[0].sample_every_px * manifest.grid.metres_per_pixel;
     document.getElementById("readout-note").textContent =
-      "Value of the nearest 1 m cell, sampled every " + every + " m. Elevation: NASA DATA. Slope: CALCULATED.";
+      "Value of the nearest 1 m cell, sampled every " + every + " m. Elevation: NASA DATA. Slope: CALCULATED." +
+      (loaded.thermal_night ? " Night/Day IR: THEMIS 100 m pixels, 0-255, qualitative (NASA DATA)." : "");
   }
 
+  const thermalCells = { night: document.getElementById("readout-thermal-night"), day: document.getElementById("readout-thermal-day") };
+  for (const kind of ["night", "day"]) {
+    thermalCells[kind].parentElement.hidden = !loaded["thermal_" + kind];
+  }
   const elevationCell = document.getElementById("readout-elevation");
   const slopeCell = document.getElementById("readout-slope");
   const unitCell = document.getElementById("readout-unit");
@@ -373,6 +472,8 @@ async function setUpReadout(map, manifest) {
     elevationCell.textContent = "—";
     slopeCell.textContent = "—";
     unitCell.textContent = "—";
+    thermalCells.night.textContent = "—";
+    thermalCells.day.textContent = "—";
   }
 
   function update(event) {
@@ -394,6 +495,12 @@ async function setUpReadout(map, manifest) {
       const unitId = readValue(loaded.unit, col, row);
       const unit = unitId === null ? undefined : unitsById[Math.round(unitId)];
       unitCell.textContent = unit === undefined ? "no data" : unit.symbol + " · " + unit.name;
+    }
+    for (const kind of ["night", "day"]) {
+      if (loaded["thermal_" + kind]) {
+        const value = readValue(loaded["thermal_" + kind], col, row);
+        thermalCells[kind].textContent = value === null ? "no data" : Math.round(value) + " / 255";
+      }
     }
   }
   map.on("mousemove", update);
@@ -674,6 +781,9 @@ function fillDataTab(manifest) {
   photosCard.appendChild(makeElement("h3", "card-title", "PHOTOS AND POSITIONS"));
   photosCard.appendChild(makeElement("p", "note", "Photos: Perseverance raw images, NASA/JPL-Caltech."));
   photosCard.appendChild(makeElement("p", "note", "Stop positions: NASA Mars 2020 rover waypoints (Perseverance)."));
+  photosCard.appendChild(
+    makeElement("p", "note", "Orbit view: Mars Viking MDIM 2.1 Colorized Global Mosaic, 232 m (USGS Astrogeology Science Center; NASA Viking Orbiter images).")
+  );
   tab.appendChild(photosCard);
 
   const limitsCard = makeElement("div", "card");
@@ -978,6 +1088,72 @@ async function saveForOffline() {
   }
 }
 
+// ---------------------------------------------------------------- intro: from orbit to the walk area
+
+function flyAndWait(map, action) {
+  return new Promise(function (resolve) {
+    map.once("moveend", function () {
+      resolve();
+    });
+    action();
+  });
+}
+
+async function introFlight(map, manifest) {
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const walkBounds = L.latLngBounds(gridToLatLng(0, manifest.grid.height), gridToLatLng(manifest.grid.width, 0));
+  let hasContext = false;
+  for (const layer of manifest.layers) {
+    if (layer.context) {
+      hasContext = true;
+    }
+  }
+  if (reduceMotion || !hasContext || IS_EMBEDDED_WRIST) {
+    return;
+  }
+  const centre = siteCentre(manifest);
+  let skipped = false;
+  function skip() {
+    skipped = true;
+  }
+  map.getContainer().addEventListener("pointerdown", skip, { once: true });
+  window.addEventListener("keydown", skip, { once: true });
+
+  const pulse = L.circleMarker(centre, { radius: 14, className: "site-pulse", interactive: false }).addTo(map);
+  map.setView(centre, -15, { animate: false });
+  await new Promise(function (resolve) {
+    setTimeout(resolve, 1200);
+  });
+  const legs = [
+    function () {
+      map.flyTo(centre, -12, { duration: 2.2 });
+    },
+    function () {
+      map.flyTo(centre, -9, { duration: 2.0 });
+    },
+    function () {
+      map.flyToBounds(walkBounds, { duration: 2.4 });
+    },
+  ];
+  for (const leg of legs) {
+    if (skipped) {
+      break;
+    }
+    await flyAndWait(map, leg);
+  }
+  map.removeLayer(pulse);
+  if (skipped) {
+    map.fitBounds(walkBounds, { animate: false });
+  }
+  // The walk area lights up and fades; the routes flash on.
+  const glow = L.rectangle(walkBounds, { className: "walk-glow", interactive: false, fill: false }).addTo(map);
+  map.getContainer().classList.add("intro-flash");
+  setTimeout(function () {
+    map.removeLayer(glow);
+    map.getContainer().classList.remove("intro-flash");
+  }, 4000);
+}
+
 // ---------------------------------------------------------------- start
 
 // ---------------------------------------------------------------- boot screen and missions
@@ -1123,6 +1299,7 @@ async function launchMission(entry) {
   fillDataTab(manifest);
   setUpMissionTab(created.map, manifest, mission, stops, routes, progress);
   openTab("hud");
+  introFlight(created.map, manifest);
   await setUpReadout(created.map, manifest);
   saveForOffline(); // runs in the background after the app is ready
 }

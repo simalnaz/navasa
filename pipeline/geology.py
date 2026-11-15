@@ -11,9 +11,10 @@ once with GDAL to GeoJSON in the grid's coordinate system:
 Each unit gets a number (1, 2, ... in symbol order; 0 = no unit). Unit names come
 from the database, with one spelling correction (NAME_CORRECTIONS). Unit
 descriptions come from data/unit_descriptions.json, copied word for word from
-the map's Description of Map Units; units without one get null.
+the map's Description of Map Units; units without one get null. The GeoJSON and
+the descriptions file are named in the mission file.
 
-Outputs:
+Outputs (in data/work/<pack>/):
     data/work/geology_overlay.png  overlay: colour fill, a hatch pattern per unit and
                                    unit outlines, so units are told apart without
                                    colour alone (build_pack.py cuts it into tiles)
@@ -23,7 +24,7 @@ Outputs:
                                    pattern), unit at each stop
 
 Usage:
-    python -m pipeline.geology
+    python -m pipeline.geology [data/missions/<mission>.json]
 """
 
 import json
@@ -36,14 +37,8 @@ from matplotlib import colormaps
 from PIL import Image
 from rasterio.features import rasterize
 
-from pipeline.crop_layers import CROPPED_DTM_PATH, PROJECT_ROOT, RAW_DIR, WORK_DIR
-from pipeline.stops import load_stops, lonlat_to_pixel
-
-GEOUNITS_PATH = os.path.join(RAW_DIR, "sim3464_geounits.geojson")
-DESCRIPTIONS_PATH = os.path.join(PROJECT_ROOT, "data", "unit_descriptions.json")
-OVERLAY_PATH = os.path.join(WORK_DIR, "geology_overlay.png")
-LOOKUP_PATH = os.path.join(WORK_DIR, "geology_ids.png")
-GEOLOGY_JSON_PATH = os.path.join(WORK_DIR, "geology.json")
+from pipeline.mission import MissionPaths, load_mission, mission_path_from_arguments
+from pipeline.stops import lonlat_to_pixel
 
 NO_UNIT = 0
 NAME_CORRECTIONS = {"Crater riim unit": "Crater rim unit"}  # spelling error in the source database
@@ -156,14 +151,16 @@ def overlay_image(units, styles):
     return overlay
 
 
-def main():
-    with open(DESCRIPTIONS_PATH, "r", encoding="utf-8") as descriptions_file:
+def main(mission_path):
+    mission = load_mission(mission_path)
+    paths = MissionPaths(mission)
+    with open(paths.unit_descriptions, "r", encoding="utf-8") as descriptions_file:
         descriptions = json.load(descriptions_file)
 
-    features = load_unit_features(GEOUNITS_PATH)
+    features = load_unit_features(paths.geology_units)
     numbers_by_symbol, names_by_symbol = number_units(features)
-    stops = load_stops()
-    with rasterio.open(CROPPED_DTM_PATH) as dtm:
+    stops = mission["stops"]
+    with rasterio.open(paths.cropped_dtm) as dtm:
         units = unit_grid(features, numbers_by_symbol, (dtm.height, dtm.width), dtm.transform)
         stop_units = {}
         for stop in stops:
@@ -187,10 +184,10 @@ def main():
             }
         )
 
-    os.makedirs(os.path.dirname(OVERLAY_PATH), exist_ok=True)
-    Image.fromarray(overlay_image(units, styles), mode="RGBA").save(OVERLAY_PATH, optimize=True)
-    Image.fromarray(units, mode="L").save(LOOKUP_PATH, optimize=True)
-    with open(GEOLOGY_JSON_PATH, "w", encoding="utf-8") as geology_file:
+    os.makedirs(paths.work_dir, exist_ok=True)
+    Image.fromarray(overlay_image(units, styles), mode="RGBA").save(paths.geology_overlay, optimize=True)
+    Image.fromarray(units, mode="L").save(paths.geology_ids, optimize=True)
+    with open(paths.geology_json, "w", encoding="utf-8") as geology_file:
         json.dump({"units": unit_list, "stop_units": stop_units}, geology_file, ensure_ascii=False, indent=2)
 
     no_unit_cells = int((units == NO_UNIT).sum())
@@ -206,10 +203,10 @@ def main():
             if unit["id"] == number:
                 symbol = f"{unit['symbol']} {unit['name']}"
         print(f"Stop {stop['id']} {stop['label']}: {symbol}")
-    for path in (OVERLAY_PATH, LOOKUP_PATH):
+    for path in (paths.geology_overlay, paths.geology_ids):
         print(f"{path}: {os.path.getsize(path) / 1e6:.1f} MB")
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(mission_path_from_arguments()))

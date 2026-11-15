@@ -1,0 +1,5 @@
+numpy==2.5.4
+rasterio==1.5.2
+scikit-image==0.26.0
+matplotlib==3.11.2
+pillow==13.0.0

@@ -943,3 +943,85 @@ body.wrist .readout {
   gap: 4px 8px;
   font-size: 10px;
 }
+
+/* Intro: from orbit to the walk area */
+
+.site-pulse {
+  stroke: var(--text);
+  stroke-width: 3;
+  fill: rgba(140, 255, 158, 0.25);
+  animation: site-pulse 1.4s ease-in-out infinite;
+  filter: drop-shadow(0 0 8px var(--text));
+}
+
+@keyframes site-pulse {
+  50% {
+    stroke-width: 8;
+    stroke-opacity: 0.4;
+  }
+}
+
+.walk-glow {
+  stroke: var(--text);
+  stroke-width: 3;
+  filter: drop-shadow(0 0 12px var(--text));
+  animation: walk-glow 4s ease-out forwards;
+}
+
+@keyframes walk-glow {
+  0% {
+    stroke-opacity: 0;
+  }
+  20% {
+    stroke-opacity: 1;
+    stroke-width: 6;
+  }
+  100% {
+    stroke-opacity: 0;
+    stroke-width: 2;
+  }
+}
+
+.intro-flash .route-line {
+  animation: route-flash 1.8s ease-out;
+}
+
+@keyframes route-flash {
+  0% {
+    stroke-opacity: 0;
+  }
+  15% {
+    stroke-opacity: 1;
+    stroke-width: 9;
+    filter: drop-shadow(0 0 10px #ffffff);
+  }
+  100% {
+    stroke-opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-pulse,
+  .walk-glow,
+  .intro-flash .route-line {
+    animation: none;
+  }
+}
+
+/* Far out: hide stop squares and routes (the site light marks the place) */
+.far-out .stop-marker,
+.far-out .route-line {
+  display: none;
+}
+
+.readout-pair {
+  display: contents;
+}
+
+.readout-pair[hidden] {
+  display: none;
+}
+
+.legend[hidden] {
+  display: none;
+}

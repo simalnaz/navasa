@@ -1,0 +1,128 @@
+{
+  "id": "jezero-biosignature",
+  "name": "Follow the water to a potential biosignature",
+  "status": "ACTIVE",
+  "objective": "Walk the ancient river-to-lake path a crew would take to re-sample the rocks where Perseverance found a potential biosignature.",
+  "objective_sources": [
+    {
+      "text": "NASA/JPL, 10 September 2025: NASA Says Mars Rover Discovered Potential Biosignature Last Year",
+      "url": "https://www.jpl.nasa.gov/news/nasa-says-mars-rover-discovered-potential-biosignature-last-year/"
+    },
+    {
+      "text": "Hurowitz, J.A., and others, 2025, Redox-driven mineral and organic associations in Jezero Crater, Mars: Nature"
+    }
+  ],
+  "pack_id": "jezero_v1",
+  "pack_version": "1.1.0",
+  "site": {
+    "name": "Jezero Crater",
+    "dtm_file": "JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40.tif",
+    "image_file": "JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first.tif",
+    "geology_file": "sim3464_geounits.geojson",
+    "unit_descriptions_file": "data/unit_descriptions.json",
+    "image_source": "HiRISE orthomosaic, 25 cm/pixel (Mars 2020 Terrain Relative Navigation). MRO, NASA/JPL-Caltech/University of Arizona; mosaic by USGS Astrogeology Science Center (Fergason and others, 2020, doi:10.5066/P9QJDP48)",
+    "image_product_id": "JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first",
+    "dtm_source": "HiRISE DTM mosaic, ~1 m/pixel (Mars 2020 Terrain Relative Navigation). MRO, NASA/JPL-Caltech/University of Arizona; mosaic by USGS Astrogeology Science Center (Fergason and others, 2020, doi:10.5066/P9REJ9JN)",
+    "dtm_product_id": "JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40",
+    "geology_source": "Sun, V.Z., and Stack, K.M., 2020, Geologic Map of Jezero Crater and the Nili Planum Region, Mars: USGS Scientific Investigations Map 3464",
+    "geology_product_id": "SIM 3464, layer GeoUnits_v1",
+    "as_of": "2020",
+    "thermal": {
+      "night_file": "sim3464_database/sim3464_JezeroNili_FINAL/Rasters/USGS_THEMIS_IR_controlled_mosaic_oct2018/nili_THEMIS_NightIR_Controlled_oct2018.tif",
+      "day_file": "sim3464_database/sim3464_JezeroNili_FINAL/Rasters/USGS_THEMIS_IR_controlled_mosaic_oct2018/nili_THEMIS_DayIR_Controlled_oct2018.tif",
+      "source": "THEMIS Night IR and Day IR controlled mosaics, 100 m/pixel, 8-bit qualitative. 2001 Mars Odyssey, NASA/JPL/Arizona State University (Christensen and others, 2004); mosaics USGS Astrogeology Science Center (Edwards and others, 2011 method), as included in USGS SIM 3464 (Sun and Stack, 2020)",
+      "product_id": "nili_THEMIS_NightIR_Controlled_oct2018, nili_THEMIS_DayIR_Controlled_oct2018",
+      "as_of": "2018"
+    }
+  },
+  "stops": [
+    {
+      "id": 1,
+      "label": "Crater floor",
+      "lat": 18.44462715,
+      "lon": 77.45088572,
+      "position_source": "NASA Mars 2020 rover waypoints, sol 13",
+      "photos": [
+        {
+          "file": "data/raw/photos/Mars_Perseverance_Sol_2_Left_Navcam.png",
+          "sol": 2,
+          "camera": "Left Navcam",
+          "image_id": null
+        },
+        {
+          "file": "data/raw/photos/Mars_Perseverance_Sol_2_Left_Mastcam-Z_Camera.png",
+          "sol": 2,
+          "camera": "Left Mastcam-Z Camera",
+          "image_id": null
+        }
+      ],
+      "question": "What did the old lake floor record?"
+    },
+    {
+      "id": 2,
+      "label": "Delta front",
+      "lat": 18.45017673,
+      "lon": 77.40343754,
+      "position_source": "NASA Mars 2020 rover waypoints, sol 426",
+      "photos": [
+        {
+          "file": "data/raw/photos/Mars_Perseverance_Sol_426_Left_Navcam.png",
+          "sol": 426,
+          "camera": "Left Navcam",
+          "image_id": null
+        },
+        {
+          "file": "data/raw/photos/Mars_Perseverance_Sol_425_Left_Mastcam-Z_Camera.png",
+          "sol": 425,
+          "camera": "Left Mastcam-Z Camera",
+          "image_id": null
+        }
+      ],
+      "question": "Where did the river drop its sediment into the lake?"
+    },
+    {
+      "id": 3,
+      "label": "Neretva Vallis",
+      "lat": 18.4940858,
+      "lon": 77.31402642,
+      "position_source": "NASA Mars 2020 rover waypoints, sol 1162",
+      "photos": [
+        {
+          "file": "data/raw/photos/Mars_Perseverance_Sol_1165_Left_Navcam.png",
+          "sol": 1165,
+          "camera": "Left Navcam",
+          "image_id": null
+        },
+        {
+          "file": "data/raw/photos/Mars_Perseverance_Sol_1167_Left_Mastcam-Z_Camera.png",
+          "sol": 1167,
+          "camera": "Left Mastcam-Z Camera",
+          "image_id": null
+        }
+      ],
+      "question": "The river channel that fed the lake: what did the water carry?"
+    },
+    {
+      "id": 4,
+      "label": "Bright Angel",
+      "lat": 18.49748444,
+      "lon": 77.30519089,
+      "position_source": "NASA Mars 2020 rover waypoints, sol 1210",
+      "photos": [
+        {
+          "file": "data/raw/photos/Mars_Perseverance_Sol_1215_Left_Navcam.png",
+          "sol": 1215,
+          "camera": "Left Navcam",
+          "image_id": null
+        },
+        {
+          "file": "data/raw/photos/Mars_Perseverance_Sol_1215_Left_Mastcam-Z_Camera.png",
+          "sol": 1215,
+          "camera": "Left Mastcam-Z Camera",
+          "image_id": null
+        }
+      ],
+      "question": "Re-sample the rock where Perseverance found a potential biosignature."
+    }
+  ]
+}

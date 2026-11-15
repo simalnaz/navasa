@@ -29,16 +29,15 @@ straight segments:
     max_slope_deg   steepest cell on the route, not counting the two stop cells
     max_slope_at    [col, row] of that cell
 
-Input:  data/work/dtm_1m.tif, data/work/slope_deg.tif, data/stops.json
-Output: data/work/routes.json  (format of the pack's routes.json)
+Input:  data/work/<pack>/dtm_1m.tif, data/work/<pack>/slope_deg.tif, the mission's stops
+Output: data/work/<pack>/routes.json  (format of the pack's routes.json)
 
 Usage:
-    python -m pipeline.routes
+    python -m pipeline.routes [data/missions/<mission>.json]
 """
 
 import json
 import math
-import os
 import sys
 
 import numpy
@@ -46,11 +45,10 @@ import rasterio
 from skimage.graph import MCP_Geometric
 from skimage.measure import label
 
-from pipeline.crop_layers import CROPPED_DTM_PATH, WORK_DIR
-from pipeline.stops import load_stops, lonlat_to_pixel
-from pipeline.terrain import SLOPE_PATH, read_heights
+from pipeline.mission import MissionPaths, load_mission, mission_path_from_arguments
+from pipeline.stops import lonlat_to_pixel
+from pipeline.terrain import read_heights
 
-ROUTES_PATH = os.path.join(WORK_DIR, "routes.json")
 IMPASSABLE_COST = -1.0  # MCP treats negative costs as impassable
 DEFAULT_ROUTES = {"sample_step_cells": 0.25}
 
@@ -222,16 +220,18 @@ def describe(route):
     )
 
 
-def main():
-    stops = load_stops()
-    with rasterio.open(CROPPED_DTM_PATH) as dtm:
+def main(mission_path):
+    mission = load_mission(mission_path)
+    paths = MissionPaths(mission)
+    stops = mission["stops"]
+    with rasterio.open(paths.cropped_dtm) as dtm:
         cell_size_m = dtm.res[0]
         heights = read_heights(dtm)
         stop_cells = []
         for stop in stops:
             col, row = lonlat_to_pixel(dtm, stop["lon"], stop["lat"])
             stop_cells.append((row, col))
-    with rasterio.open(SLOPE_PATH) as slope_file:
+    with rasterio.open(paths.slope) as slope_file:
         slope = slope_file.read(1).astype(numpy.float64)
 
     for stop, cell in zip(stops, stop_cells):
@@ -250,11 +250,11 @@ def main():
         print(f"  gentlest: {describe(gentlest)}")
         legs.append({"from": from_stop["id"], "to": to_stop["id"], "shortest": shortest, "gentlest": gentlest})
 
-    with open(ROUTES_PATH, "w", encoding="utf-8") as routes_file:
+    with open(paths.routes, "w", encoding="utf-8") as routes_file:
         json.dump(legs, routes_file)
-    print(f"Routes written to {ROUTES_PATH}")
+    print(f"Routes written to {paths.routes}")
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(mission_path_from_arguments()))

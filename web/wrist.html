@@ -27,7 +27,15 @@
       <div class="sleeve-seam seam-1"></div>
       <div class="sleeve-seam seam-2"></div>
       <div class="sleeve-seam seam-3"></div>
-      <div class="glove"></div>
+    </div>
+    <div class="hand" aria-hidden="true">
+      <div class="thumb"></div>
+      <div class="finger-glove finger-index"></div>
+      <div class="finger-glove finger-middle"></div>
+      <div class="finger-glove finger-ring"></div>
+      <div class="finger-glove finger-little"></div>
+      <div class="palm"></div>
+      <div class="wrist-ring"></div>
     </div>
     <div class="strap strap-left" aria-hidden="true"></div>
     <div class="strap strap-right" aria-hidden="true"></div>
@@ -67,7 +75,7 @@
         <div class="knob-group">
           <button type="button" class="knob-step" id="zoom-out" aria-label="Zoom out">−</button>
           <button type="button" class="knob" id="zoom-knob" aria-label="Zoom knob: scroll or use plus and minus">
-            <span class="knob-mark" aria-hidden="true"></span>
+            <span class="knob-dial" id="knob-dial" aria-hidden="true"><span class="knob-mark"></span></span>
           </button>
           <button type="button" class="knob-step" id="zoom-in" aria-label="Zoom in">+</button>
           <span class="control-label">ZOOM</span>

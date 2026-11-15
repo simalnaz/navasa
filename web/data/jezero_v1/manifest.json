@@ -24,6 +24,75 @@
   },
   "layers": [
     {
+      "id": "context-planet",
+      "kind": "imagery",
+      "context": true,
+      "tiles": {
+        "url": "tiles/context-planet/{z}/{x}/{y}.png",
+        "min_zoom": -16,
+        "max_zoom": -14,
+        "tile_size": 256,
+        "bounds_lonlat": [
+          -180.0,
+          -90.0,
+          180.0,
+          90.0
+        ]
+      },
+      "units": null,
+      "legend": null,
+      "source": "Mars Viking MDIM 2.1 Colorized Global Mosaic (USGS Astrogeology Science Center; NASA Viking Orbiter images), via NASA Mars Trek",
+      "product_id": "Mars_Viking_MDIM21_ClrMosaic_global_232m",
+      "as_of": null,
+      "label": "NASA DATA"
+    },
+    {
+      "id": "context-region",
+      "kind": "imagery",
+      "context": true,
+      "tiles": {
+        "url": "tiles/context-region/{z}/{x}/{y}.png",
+        "min_zoom": -13,
+        "max_zoom": -11,
+        "tile_size": 256,
+        "bounds_lonlat": [
+          61.875,
+          5.625,
+          95.625,
+          33.75
+        ]
+      },
+      "units": null,
+      "legend": null,
+      "source": "Mars Viking MDIM 2.1 Colorized Global Mosaic (USGS Astrogeology Science Center; NASA Viking Orbiter images), via NASA Mars Trek",
+      "product_id": "Mars_Viking_MDIM21_ClrMosaic_global_232m",
+      "as_of": null,
+      "label": "NASA DATA"
+    },
+    {
+      "id": "context-crater",
+      "kind": "imagery",
+      "context": true,
+      "tiles": {
+        "url": "tiles/context-crater/{z}/{x}/{y}.png",
+        "min_zoom": -10,
+        "max_zoom": -9,
+        "tile_size": 256,
+        "bounds_lonlat": [
+          74.53125,
+          16.875,
+          80.15625,
+          21.09375
+        ]
+      },
+      "units": null,
+      "legend": null,
+      "source": "Mars Viking MDIM 2.1 Colorized Global Mosaic (USGS Astrogeology Science Center; NASA Viking Orbiter images), via NASA Mars Trek",
+      "product_id": "Mars_Viking_MDIM21_ClrMosaic_global_232m",
+      "as_of": null,
+      "label": "NASA DATA"
+    },
+    {
       "id": "hirise",
       "kind": "imagery",
       "tiles": {
@@ -305,6 +374,150 @@
       "product_id": "SIM 3464, layer GeoUnits_v1",
       "as_of": "2020",
       "label": "NASA DATA"
+    },
+    {
+      "id": "thermal-night",
+      "kind": "raster-continuous",
+      "tiles": {
+        "url": "tiles/thermal-night/{z}/{x}/{y}.png",
+        "min_zoom": -6,
+        "max_zoom": -3,
+        "tile_size": 256
+      },
+      "units": "8-bit value (qualitative): brighter = warmer surface when observed",
+      "legend": [
+        {
+          "from_value": 0,
+          "to_value": 42,
+          "color": [
+            16,
+            9,
+            47
+          ]
+        },
+        {
+          "from_value": 42,
+          "to_value": 85,
+          "color": [
+            85,
+            15,
+            109
+          ]
+        },
+        {
+          "from_value": 85,
+          "to_value": 128,
+          "color": [
+            153,
+            40,
+            100
+          ]
+        },
+        {
+          "from_value": 128,
+          "to_value": 170,
+          "color": [
+            215,
+            75,
+            62
+          ]
+        },
+        {
+          "from_value": 170,
+          "to_value": 212,
+          "color": [
+            249,
+            140,
+            9
+          ]
+        },
+        {
+          "from_value": 212,
+          "to_value": 255,
+          "color": [
+            244,
+            220,
+            79
+          ]
+        }
+      ],
+      "source": "THEMIS Night IR and Day IR controlled mosaics, 100 m/pixel, 8-bit qualitative. 2001 Mars Odyssey, NASA/JPL/Arizona State University (Christensen and others, 2004); mosaics USGS Astrogeology Science Center (Edwards and others, 2011 method), as included in USGS SIM 3464 (Sun and Stack, 2020)",
+      "product_id": "nili_THEMIS_NightIR_Controlled_oct2018, nili_THEMIS_DayIR_Controlled_oct2018",
+      "as_of": "2018",
+      "label": "NASA DATA",
+      "display_name": "THEMIS NIGHT IR"
+    },
+    {
+      "id": "thermal-day",
+      "kind": "raster-continuous",
+      "tiles": {
+        "url": "tiles/thermal-day/{z}/{x}/{y}.png",
+        "min_zoom": -6,
+        "max_zoom": -3,
+        "tile_size": 256
+      },
+      "units": "8-bit value (qualitative): brighter = warmer surface when observed",
+      "legend": [
+        {
+          "from_value": 0,
+          "to_value": 42,
+          "color": [
+            16,
+            9,
+            47
+          ]
+        },
+        {
+          "from_value": 42,
+          "to_value": 85,
+          "color": [
+            85,
+            15,
+            109
+          ]
+        },
+        {
+          "from_value": 85,
+          "to_value": 128,
+          "color": [
+            153,
+            40,
+            100
+          ]
+        },
+        {
+          "from_value": 128,
+          "to_value": 170,
+          "color": [
+            215,
+            75,
+            62
+          ]
+        },
+        {
+          "from_value": 170,
+          "to_value": 212,
+          "color": [
+            249,
+            140,
+            9
+          ]
+        },
+        {
+          "from_value": 212,
+          "to_value": 255,
+          "color": [
+            244,
+            220,
+            79
+          ]
+        }
+      ],
+      "source": "THEMIS Night IR and Day IR controlled mosaics, 100 m/pixel, 8-bit qualitative. 2001 Mars Odyssey, NASA/JPL/Arizona State University (Christensen and others, 2004); mosaics USGS Astrogeology Science Center (Edwards and others, 2011 method), as included in USGS SIM 3464 (Sun and Stack, 2020)",
+      "product_id": "nili_THEMIS_NightIR_Controlled_oct2018, nili_THEMIS_DayIR_Controlled_oct2018",
+      "as_of": "2018",
+      "label": "NASA DATA",
+      "display_name": "THEMIS DAY IR"
     }
   ],
   "readouts": [
@@ -340,6 +553,28 @@
       "no_data_code": 65535,
       "label": "NASA DATA",
       "source": "Sun, V.Z., and Stack, K.M., 2020, Geologic Map of Jezero Crater and the Nili Planum Region, Mars: USGS Scientific Investigations Map 3464"
+    },
+    {
+      "id": "thermal_night",
+      "file": "layers/thermal_night_readout.png",
+      "units": "8-bit value",
+      "base": 0.0,
+      "step": 1.0,
+      "sample_every_px": 8,
+      "no_data_code": 65535,
+      "label": "NASA DATA",
+      "source": "THEMIS Night IR and Day IR controlled mosaics, 100 m/pixel, 8-bit qualitative. 2001 Mars Odyssey, NASA/JPL/Arizona State University (Christensen and others, 2004); mosaics USGS Astrogeology Science Center (Edwards and others, 2011 method), as included in USGS SIM 3464 (Sun and Stack, 2020)"
+    },
+    {
+      "id": "thermal_day",
+      "file": "layers/thermal_day_readout.png",
+      "units": "8-bit value",
+      "base": 0.0,
+      "step": 1.0,
+      "sample_every_px": 8,
+      "no_data_code": 65535,
+      "label": "NASA DATA",
+      "source": "THEMIS Night IR and Day IR controlled mosaics, 100 m/pixel, 8-bit qualitative. 2001 Mars Odyssey, NASA/JPL/Arizona State University (Christensen and others, 2004); mosaics USGS Astrogeology Science Center (Edwards and others, 2011 method), as included in USGS SIM 3464 (Sun and Stack, 2020)"
     }
   ],
   "methods": {

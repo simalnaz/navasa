@@ -8,7 +8,7 @@
 
 "use strict";
 
-const SCENE_WIDTH = 1200;
+const SCENE_WIDTH = 1700;
 const SCENE_HEIGHT = 760;
 const KNOB_STEP_DEG = 30;
 const MAX_TURN_DEG = 40;
@@ -50,7 +50,8 @@ function pressKey(tab) {
 
 function turnKnob(direction) {
   knobAngle += direction === "in" ? KNOB_STEP_DEG : -KNOB_STEP_DEG;
-  document.getElementById("zoom-knob").style.transform = "rotate(" + knobAngle + "deg)";
+  // Only the dial inside turns; the button itself never moves, so it keeps its clicks in 3D.
+  document.getElementById("knob-dial").style.transform = "rotate(" + knobAngle + "deg)";
   sendToScreen({ type: "navasa:zoom", direction: direction });
 }
 

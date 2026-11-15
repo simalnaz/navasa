@@ -1,17 +1,11 @@
-"""Read and check data/stops.json, and convert stop positions to map pixels.
+"""Check the stops of a mission, and convert stop positions to map pixels.
 
-data/stops.json has one entry per stop: its label, latitude/longitude, where
-the position came from (position_source), and the Perseverance photos for
-that stop. A missing value is an
-error that says what to add.
-
-Usage:
-    python -m pipeline.stops
+Each stop (in the mission file, see mission.py) has its label, latitude/longitude,
+where the position came from (position_source), and the Perseverance photos for
+that stop. A missing value is an error that says what to add; nothing is filled in.
 """
 
-import json
 import os
-import sys
 
 from rasterio.crs import CRS
 from rasterio.warp import transform
@@ -19,7 +13,6 @@ from rasterio.warp import transform
 from pipeline.pack_format import is_integer, is_number, is_text, resolve_inside_folder
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEFAULT_STOPS_PATH = os.path.join(PROJECT_ROOT, "data", "stops.json")
 DEFAULT_PHOTOS_DIR = os.path.join(PROJECT_ROOT, "data", "raw", "photos")
 
 REQUIRED_STOP_FIELDS = ("id", "label", "lat", "lon", "position_source", "photos")
@@ -27,7 +20,7 @@ REQUIRED_PHOTO_FIELDS = ("file", "sol", "camera", "image_id")
 
 
 class StopsFileError(Exception):
-    """data/stops.json is missing, unreadable or has invalid entries."""
+    """The stops are missing, unreadable or has invalid entries."""
 
     def __init__(self, problems):
         self.problems = problems
@@ -90,16 +83,10 @@ def check_stop(stop, project_root, photos_dir, where, problems):
         check_photo(photo, project_root, photos_dir, f"{where} photo {photo_index}", problems)
 
 
-def load_stops(stops_path=DEFAULT_STOPS_PATH, project_root=PROJECT_ROOT, photos_dir=DEFAULT_PHOTOS_DIR):
-    """Read and check the stops file. Return the list of stops or raise StopsFileError."""
-    try:
-        with open(stops_path, "r", encoding="utf-8") as stops_file:
-            stops = json.load(stops_file)
-    except (OSError, ValueError) as error:
-        raise StopsFileError([f"cannot read {stops_path} ({error})"])
+def validate_stops(stops, project_root=PROJECT_ROOT, photos_dir=DEFAULT_PHOTOS_DIR):
+    """Check a list of stops (from a mission file). Return it or raise StopsFileError."""
     if not isinstance(stops, list) or len(stops) == 0:
-        raise StopsFileError(["top level must be a non-empty list of stops"])
-
+        raise StopsFileError(["stops must be a non-empty list"])
     problems = []
     seen_ids = set()
     for index, stop in enumerate(stops):
@@ -129,19 +116,3 @@ def lonlat_to_pixel(dataset, lon, lat):
     return [int(col), int(row)]
 
 
-def main():
-    try:
-        stops = load_stops()
-    except StopsFileError as error:
-        print("INVALID data/stops.json:")
-        for problem in error.problems:
-            print(f"  - {problem}")
-        return 1
-    print(f"VALID data/stops.json: {len(stops)} stops")
-    for stop in stops:
-        print(f"  {stop['id']}. {stop['label']}: lat {stop['lat']}, lon {stop['lon']}")
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())

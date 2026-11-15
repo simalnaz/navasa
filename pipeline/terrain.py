@@ -10,22 +10,19 @@ Slope is the angle of the steepest rise:
 A cell with no height, or next to one, has no slope (NaN). No limit or mask
 is applied.
 
-Input:  data/work/dtm_1m.tif   (from crop_layers.py)
-Output: data/work/slope_deg.tif
+Input:  data/work/<pack>/dtm_1m.tif   (from crop_layers.py)
+Output: data/work/<pack>/slope_deg.tif
 
 Usage:
-    python -m pipeline.terrain
+    python -m pipeline.terrain [data/missions/<mission>.json]
 """
 
-import os
 import sys
 
 import numpy
 import rasterio
 
-from pipeline.crop_layers import CROPPED_DTM_PATH, WORK_DIR
-
-SLOPE_PATH = os.path.join(WORK_DIR, "slope_deg.tif")
+from pipeline.mission import MissionPaths, load_mission, mission_path_from_arguments
 
 
 def slope_degrees(heights, cell_size_m):
@@ -46,8 +43,9 @@ def read_heights(dtm):
     return heights
 
 
-def main():
-    with rasterio.open(CROPPED_DTM_PATH) as dtm:
+def main(mission_path):
+    paths = MissionPaths(load_mission(mission_path))
+    with rasterio.open(paths.cropped_dtm) as dtm:
         if dtm.res[0] != dtm.res[1]:
             raise ValueError("DTM pixels are not square")
         cell_size_m = dtm.res[0]
@@ -56,11 +54,11 @@ def main():
         profile = dtm.profile.copy()
         profile.update(dtype="float32", nodata=numpy.nan)
 
-    with rasterio.open(SLOPE_PATH, "w", **profile) as slope_file:
+    with rasterio.open(paths.slope, "w", **profile) as slope_file:
         slope_file.write(slope, 1)
 
     cells_with_slope = int(numpy.isfinite(slope).sum())
-    print(f"Slope written to {SLOPE_PATH}")
+    print(f"Slope written to {paths.slope}")
     print(f"Cells with a slope: {cells_with_slope} of {slope.size}")
     print(f"Slope min {numpy.nanmin(slope):.2f} deg, max {numpy.nanmax(slope):.2f} deg, "
           f"mean {numpy.nanmean(slope):.2f} deg")
@@ -68,4 +66,4 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(mission_path_from_arguments()))
