@@ -86,6 +86,10 @@ class LoadStopsTest(unittest.TestCase):
         self.stops[0]["photos"][0]["sol"] = "two"
         self.assert_rejected("sol must be an integer")
 
+    def test_stop_without_photos_is_accepted(self):
+        self.stops[0]["photos"] = []
+        self.load()  # raises StopsFileError if rejected
+
     def test_not_a_list_is_rejected(self):
         self.stops = {"id": 1}
         self.assert_rejected("non-empty list")

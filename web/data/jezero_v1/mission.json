@@ -30,5 +30,70 @@
       "stop_id": 4,
       "question": "Re-sample the rock where Perseverance found a potential biosignature."
     }
-  ]
+  ],
+  "pack_version": "1.1.0",
+  "site_template": {
+    "name": "Jezero Crater",
+    "dtm_file": "JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40.tif",
+    "image_file": "JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first.tif",
+    "geology_file": "sim3464_geounits.geojson",
+    "unit_descriptions_file": "data/unit_descriptions.json",
+    "image_source": "HiRISE orthomosaic, 25 cm/pixel (Mars 2020 Terrain Relative Navigation). MRO, NASA/JPL-Caltech/University of Arizona; mosaic by USGS Astrogeology Science Center (Fergason and others, 2020, doi:10.5066/P9QJDP48)",
+    "image_product_id": "JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first",
+    "dtm_source": "HiRISE DTM mosaic, ~1 m/pixel (Mars 2020 Terrain Relative Navigation). MRO, NASA/JPL-Caltech/University of Arizona; mosaic by USGS Astrogeology Science Center (Fergason and others, 2020, doi:10.5066/P9REJ9JN)",
+    "dtm_product_id": "JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40",
+    "geology_source": "Sun, V.Z., and Stack, K.M., 2020, Geologic Map of Jezero Crater and the Nili Planum Region, Mars: USGS Scientific Investigations Map 3464",
+    "geology_product_id": "SIM 3464, layer GeoUnits_v1",
+    "as_of": "2020",
+    "thermal": {
+      "night_file": "sim3464_database/sim3464_JezeroNili_FINAL/Rasters/USGS_THEMIS_IR_controlled_mosaic_oct2018/nili_THEMIS_NightIR_Controlled_oct2018.tif",
+      "day_file": "sim3464_database/sim3464_JezeroNili_FINAL/Rasters/USGS_THEMIS_IR_controlled_mosaic_oct2018/nili_THEMIS_DayIR_Controlled_oct2018.tif",
+      "source": "THEMIS Night IR and Day IR controlled mosaics, 100 m/pixel, 8-bit qualitative. 2001 Mars Odyssey, NASA/JPL/Arizona State University (Christensen and others, 2004); mosaics USGS Astrogeology Science Center (Edwards and others, 2011 method), as included in USGS SIM 3464 (Sun and Stack, 2020)",
+      "product_id": "nili_THEMIS_NightIR_Controlled_oct2018, nili_THEMIS_DayIR_Controlled_oct2018",
+      "as_of": "2018"
+    },
+    "habitat": {
+      "label": "Perseverance landing site (Octavia E. Butler Landing)",
+      "lat": 18.44462715,
+      "lon": 77.45088572,
+      "source": "NASA Mars 2020 rover waypoints (M20_waypoints.json), first entry: sol 13, site 3, before the first drive (total distance 0 m)"
+    },
+    "surface_radius": {
+      "radius_m": 3391936.53,
+      "source": "NASA Mars 2020 rover waypoints (M20_waypoints.json), first entry (sol 13): distance from the centre of Mars at the landing site"
+    },
+    "meda": {
+      "source": "Mars 2020 MEDA (Mars Environmental Dynamics Analyzer) calibrated environmental data, NASA PDS Atmospheres Node; Rodriguez-Manfredi and others (2021), Space Science Reviews",
+      "product_id": "PDS4 bundle mars2020_meda, collection data_calibrated_env (CAL_ATS, CAL_TIRS)",
+      "url": "https://pds-atmospheres.nmsu.edu/PDS/data/PDS4/Mars2020/mars2020_meda/",
+      "as_of": "2026-08-11",
+      "sols": [
+        {
+          "sol": 15,
+          "stop_id": 1,
+          "note": "MEDA has no sol 13; on sol 15 the rover was within about 60 m of stop 1",
+          "ats_file": "meda/WE__0015___________CAL_ATS_________________P01.CSV",
+          "tirs_file": "meda/WE__0015___________CAL_TIRS________________P04.CSV"
+        },
+        {
+          "sol": 426,
+          "stop_id": 2,
+          "ats_file": "meda/WE__0426___________CAL_ATS_________________P01.CSV",
+          "tirs_file": "meda/WE__0426___________CAL_TIRS________________P01.CSV"
+        },
+        {
+          "sol": 1162,
+          "stop_id": 3,
+          "ats_file": "meda/WE__1162___________CAL_ATS_________________P01.CSV",
+          "tirs_file": "meda/WE__1162___________CAL_TIRS________________P02.CSV"
+        },
+        {
+          "sol": 1210,
+          "stop_id": 4,
+          "ats_file": "meda/WE__1210___________CAL_ATS_________________P01.CSV",
+          "tirs_file": "meda/WE__1210___________CAL_TIRS________________P02.CSV"
+        }
+      ]
+    }
+  }
 }

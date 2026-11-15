@@ -24,6 +24,7 @@ const APP_FILES = [
   "los.js",
   "gravity.js",
   "health.js",
+  "editor.js",
   "manifest.webmanifest",
   "missions.json",
   "wrist.html",

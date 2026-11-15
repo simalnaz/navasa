@@ -1303,3 +1303,50 @@ body.wrist .los-section {
   fill: transparent;
   cursor: crosshair;
 }
+
+/* Mission editor */
+
+.editor-row,
+.editor-stop {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+
+.editor-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+textarea.message-input,
+select.message-input {
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.editor-marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 2px dashed var(--text);
+  border-radius: 50%;
+  background: var(--background);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.editor-line {
+  stroke: var(--text);
+}
+
+/* The editor is a planning tool: not on the wrist screen. */
+body.wrist .editor-section {
+  display: none;
+}

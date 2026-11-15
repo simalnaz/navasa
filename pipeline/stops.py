@@ -76,8 +76,8 @@ def check_stop(stop, project_root, photos_dir, where, problems):
     if not is_text(stop["position_source"]):
         problems.append(f"{where}: position_source must be text")
     photos = stop["photos"]
-    if not isinstance(photos, list) or len(photos) == 0:
-        problems.append(f"{where}: photos must be a non-empty list")
+    if not isinstance(photos, list):
+        problems.append(f"{where}: photos must be a list (it may be empty, e.g. a stop placed in the mission editor)")
         return
     for photo_index, photo in enumerate(photos):
         check_photo(photo, project_root, photos_dir, f"{where} photo {photo_index}", problems)

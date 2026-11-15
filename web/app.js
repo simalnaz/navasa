@@ -2033,6 +2033,7 @@ async function launchMission(entry) {
   await setUpLineOfSight(created.map, manifest, stops);
   setUpGravityCard(manifest, routes);
   setUpHealthCard(manifest);
+  await setUpMissionEditor(created.map, manifest, mission, stops);
   saveForOffline(); // runs in the background after the app is ready
 }
 

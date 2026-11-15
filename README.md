@@ -23,7 +23,7 @@ NAVASA is an entry to the NASA Space Apps Challenge 2026. It is not affiliated w
 | **STOPS** | Rock unit and its description, Perseverance photos (two cameras), the mission question, "mark stop as reached" |
 | **SKY** | Mars clock (Perseverance sol, LMST, LTST, season Ls), sunrise and sunset, time to sunset; choose a sol and time or play the sol; terrain shadows on the map; share of each route in shadow; sun arrow on the map; **Earth link**: one-way and round-trip light time, distance, Sun–Earth–Mars angle, a to-scale Sun–Earth–Mars diagram and a **SEND** message simulation (real time or 60× faster) |
 | **DATA** | Source, product, date, label (NASA DATA or CALCULATED) and method of every layer and number; known limits |
-| **MISSION** | Objective and its sources, progress, next stop with bearing and distance; **health / status**: A this device's battery (real), B EVA timer + time to sunset (real), C temperatures measured by Perseverance MEDA on the sol it was at each stop (air and ground, hourly chart and table), D suit TRAINING SIMULATION from values you type |
+| **MISSION** | Objective and its sources, progress, next stop with bearing and distance; **health / status**: A this device's battery (real), B EVA timer + time to sunset (real), C temperatures measured by Perseverance MEDA on the sol it was at each stop (air and ground, hourly chart and table), D suit TRAINING SIMULATION from values you type; **mission editor**: create, edit, delete, export and import your own missions on this site (stops placed on the map, straight-line facts per leg; kept in the browser; the export is a mission file the pipeline builds) |
 
 Layouts: wide (laptop or habitat screen), tablet (tab bar at the bottom) and **wrist view** (phones, or the WRIST VIEW button): a compact navigator for a suit sleeve.
 
@@ -120,6 +120,8 @@ Everything mission-specific is in one file, `data/missions/<mission>.json`: name
 
 The new mission appears on the boot screen. Each objective needs a source; missing values stop the build instead of being filled in.
 
+**From the app:** MISSION tab → MISSION EDITOR → NEW MISSION (or DUPLICATE the built-in one), place stops on the map, SAVE, then EXPORT. The exported file is a complete mission file for the same site (stops without photos are allowed); put it in `data/missions/` and run `run_mission` on it to get its routes and full pack.
+
 ---
 
 ## Repository layout
@@ -129,7 +131,7 @@ pipeline/   Python steps: mission, stops, crop_layers, terrain, routes, geology,
             run_mission, make_globe, context_maps, mars_time
 tests/      unittest
 data/       missions/ (mission files), unit_descriptions.json; raw/ and work/ are not committed
-web/        the app: index.html, styles.css, app.js, globe.js, marstime.js, sun.js, comms.js, los.js, gravity.js, health.js, sw.js, wrist.html/css/js, vendor/leaflet,
+web/        the app: index.html, styles.css, app.js, globe.js, marstime.js, sun.js, comms.js, los.js, gravity.js, health.js, editor.js, sw.js, wrist.html/css/js, vendor/leaflet,
             missions.json, data/<pack>/, data/globe/
 .github/    workflow that publishes web/ to GitHub Pages
 ```

@@ -425,7 +425,8 @@ def write_offline_list(pack_dir, manifest, pack_stops, legs):
 
 
 def write_mission_file(pack_dir, mission):
-    """The mission as the app shows it: no raw-file names, only what the user reads."""
+    """The mission as the app shows it, plus site_template: the mission file's site block (raw-file
+    names and credits), so the in-app mission editor can export a complete mission file for this site."""
     questions = []
     for stop in mission["stops"]:
         questions.append({"stop_id": stop["id"], "question": stop["question"]})
@@ -437,6 +438,8 @@ def write_mission_file(pack_dir, mission):
         "objective_sources": mission["objective_sources"],
         "site": mission["site"]["name"],
         "questions": questions,
+        "pack_version": mission["pack_version"],
+        "site_template": mission["site"],
     }
     with open(os.path.join(pack_dir, "mission.json"), "w", encoding="utf-8") as mission_file:
         json.dump(pack_mission, mission_file, ensure_ascii=False, indent=2)
